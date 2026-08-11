@@ -1,4 +1,4 @@
-rootProject.name = "dctm-admin-tool"
+rootProject.name = "ECM-Dev-Workbench"
 
 pluginManagement {
     repositories {

@@ -233,8 +233,8 @@ export function App() {
         <span className="brand">
           <span className="brand-mark" aria-hidden />
           <span className="brand-text">
-            ECM Tools
-            <small>Developer workbench</small>
+            ECM-Dev-Workbench
+            <small>Documentum · xECM</small>
           </span>
         </span>
         <select value={profileId} onChange={(e) => setProfileId(e.target.value)}>
@@ -320,7 +320,7 @@ export function App() {
           {!session && (
             <div className="panel landing-page">
               <header className="landing-hero">
-                <p className="eyebrow">ECM Developer Tools</p>
+                <p className="eyebrow">ECM-Dev-Workbench</p>
                 <h2>Connect to a repository</h2>
                 <p className="lede">
                   Documentum and Extended ECM are separate products. Connect to one profile — the workbench only shows

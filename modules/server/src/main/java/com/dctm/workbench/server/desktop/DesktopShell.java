@@ -69,7 +69,7 @@ public final class DesktopShell {
             if (openBrowser) {
                 openBrowser(url);
             }
-            JFrame frame = new JFrame("DCTM Workbench");
+            JFrame frame = new JFrame("ECM-Dev-Workbench");
             frame.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
             frame.addWindowListener(new WindowAdapter() {
                 @Override
@@ -78,7 +78,7 @@ public final class DesktopShell {
                 }
             });
 
-            JLabel title = new JLabel("Workbench is running");
+            JLabel title = new JLabel("ECM-Dev-Workbench is running");
             title.setFont(title.getFont().deriveFont(Font.BOLD, 16f));
             JLabel link = new JLabel(url);
             JPanel text = new JPanel(new BorderLayout(0, 6));
@@ -116,8 +116,8 @@ public final class DesktopShell {
         SwingUtilities.invokeLater(() ->
                 JOptionPane.showMessageDialog(
                         null,
-                        "Workbench is already running.\n" + url,
-                        "DCTM Workbench",
+                        "ECM-Dev-Workbench is already running.\n" + url,
+                        "ECM-Dev-Workbench",
                         JOptionPane.INFORMATION_MESSAGE));
     }
 }

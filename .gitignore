@@ -20,6 +20,7 @@ modules/server/src/main/resources/static/
 hs_err_pid*
 
 .dctm-admin/
+.ecm-dev-workbench/
 mock-repo.json
 
 .DS_Store

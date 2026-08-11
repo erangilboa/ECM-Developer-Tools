@@ -31,12 +31,25 @@ public class ProfileStore {
     private final Map<String, String> secrets = new ConcurrentHashMap<>();
 
     public ProfileStore(@Value("${workbench.home}") String homeDir) {
-        this.home = Path.of(homeDir);
+        this.home = migrateLegacyHome(Path.of(homeDir));
         this.profilesFile = home.resolve("profiles.json");
         this.queriesFile = home.resolve("queries.json");
         this.key = AesGcm.loadOrCreate(home.resolve("master.key"));
         loadSecrets();
         ensureDefaults();
+    }
+
+    /** Prefer ~/.ecm-dev-workbench; adopt ~/.dctm-admin if that is all that exists. */
+    private static Path migrateLegacyHome(Path home) {
+        Path legacy = Path.of(System.getProperty("user.home"), ".dctm-admin");
+        try {
+            if (!Files.exists(home) && Files.isDirectory(legacy)) {
+                Files.move(legacy, home);
+            }
+        } catch (Exception ignored) {
+            // keep the new home; user can copy profiles manually
+        }
+        return home;
     }
 
     public synchronized List<ConnectionProfile> list() {

@@ -42,6 +42,6 @@ tasks.register("dist") {
 
 tasks.register("installLocal") {
     group = "distribution"
-    description = "Install DCTM Workbench for this user"
+    description = "Install ECM-Dev-Workbench for this user"
     dependsOn(":server:installLocal")
 }

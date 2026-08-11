@@ -23,7 +23,7 @@ Shared OTDS client feeds Documentum REST (23.4+) and OTCS REST.
 
 ## Sessions
 
-The server keeps connected sessions in memory, keyed by a random session id. Closing the process drops mock mutations unless persisted under `~/.dctm-admin/`.
+The server keeps connected sessions in memory, keyed by a random session id. Closing the process drops mock mutations unless persisted under `~/.ecm-dev-workbench/`.
 
 ## Security
 

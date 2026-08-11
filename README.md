@@ -1,8 +1,8 @@
-# ECM Developer Tools
+# ECM-Dev-Workbench
 
 **[Download the latest installation](https://github.com/erangilboa/ECM-Developer-Tools/releases/latest)**
 
-Local developer workbench for **OpenText Documentum** (21.2–24.2) and **OpenText Extended ECM / Content Server (OTCS)** (21.2–24.2). Connect to one product at a time; the sidebar, id labels, and tools switch to that platform.
+**ECM-Dev-Workbench** is a local developer workbench for **OpenText Documentum** (21.2–24.2) and **OpenText Extended ECM / Content Server (OTCS)** (21.2–24.2). Connect to one product at a time; the sidebar, id labels, and tools switch to that platform.
 
 Documentum: cabinets, DQL, dump, jobs, IAPI. Extended ECM is a separate product: volumes/nodes, CS search, categories, Business Workspaces, and scheduled agents — not DQL.
 
@@ -14,7 +14,7 @@ You can work **offline against in-memory mocks** or **live** against Documentum 
 
 - Named connection profiles for Documentum (`MOCK_DFC`, `DCTM_REST`, `LIVE_DFC`, DFS stub) and Extended ECM (`MOCK_OTCS`, `OTCS_REST`, CWS stub).
 - First launch seeds **Local mock (Documentum)** and **Local mock (Extended ECM)**.
-- Username/password, HTTP Basic, OTCS ticket, and OTDS password-grant or stored bearer. Secrets are stored encrypted (AES-GCM) under `%USERPROFILE%\.dctm-admin\` (or `~/.dctm-admin`).
+- Username/password, HTTP Basic, OTCS ticket, and OTDS password-grant or stored bearer. Secrets are stored encrypted (AES-GCM) under `%USERPROFILE%\.ecm-dev-workbench\` (or `~/.ecm-dev-workbench`).
 - Connect from the landing cards or the top bar. The status chip shows product, protocol, repository, version, and user.
 - Capability matrix drives which modules appear. Unsupported calls fail with a clear message (for example “DQL requires a Documentum session”).
 - Mock sessions can be reset from the UI.
@@ -94,7 +94,7 @@ OpenText DFC/DFS JARs are **not** bundled. Point a live DFC profile at your inst
 | `ECM-Developer-Tools-*-windows-x64.zip` | Windows install with bundled Java (recommended) |
 | `ECM-Developer-Tools-*-portable.zip` | Any OS; requires Java 17+ on PATH |
 
-Unzip the Windows package and run `install-windows.ps1` or `start-workbench.bat`. Details: [install/README.md](install/README.md).
+Unzip the Windows package and double-click `install-windows.cmd` (or `start-workbench.bat` to run without shortcuts). Do not pass a SourceDir. Details: [install/README.md](install/README.md).
 
 To build and install from this source tree, double-click `install.bat` (or run the Gradle task):
 
@@ -102,7 +102,7 @@ To build and install from this source tree, double-click `install.bat` (or run t
 gradlew.bat installLocal
 ```
 
-That builds the UI into the server JAR, then copies the app to `%LOCALAPPDATA%\Programs\DCTM-Workbench` and creates **Start Menu** and **Desktop** shortcuts named **DCTM Workbench**.
+That builds the UI into the server JAR, then copies the app to `%LOCALAPPDATA%\Programs\ECM-Dev-Workbench` and creates **Start Menu** and **Desktop** shortcuts named **ECM-Dev-Workbench**.
 
 Launch the shortcut. A small status window appears and the browser opens at http://127.0.0.1:18080/. Quit from that window (or close it) to stop the server.
 
@@ -112,7 +112,7 @@ To uninstall:
 powershell -ExecutionPolicy Bypass -File packaging\uninstall-windows.ps1
 ```
 
-Profiles stay in `%USERPROFILE%\.dctm-admin`.
+Profiles stay in `%USERPROFILE%\.ecm-dev-workbench`.
 
 ### Portable zip (any OS)
 
@@ -124,14 +124,14 @@ Artifacts:
 
 | Path | What |
 | --- | --- |
-| `build/dist/dctm-workbench-0.1.0.zip` | JAR + start scripts (needs Java 17+ on PATH) |
-| `build/dist/dctm-workbench/` | Unzipped portable folder |
-| `build/dist/DCTMWorkbench/` | App image with a bundled runtime (`jpackage`, no separate Java install) |
+| `build/dist/ECM-Dev-Workbench-0.1.0.zip` | JAR + start scripts (needs Java 17+ on PATH) |
+| `build/dist/ECM-Dev-Workbench-portable/` | Unzipped portable folder |
+| `build/dist/ECM-Dev-Workbench/` | App image with a bundled runtime (`jpackage`, no separate Java install) |
 
 Unzip the zip, then run `start-workbench.bat` / `start-workbench.sh`, or on Windows:
 
 ```bat
-powershell -ExecutionPolicy Bypass -File install-windows.ps1 -SourceDir .
+powershell -ExecutionPolicy Bypass -File install-windows.ps1
 ```
 
 ## Run (development)
@@ -176,4 +176,4 @@ The API uses port **18080** so it does not collide with a local Firebase emulato
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/CAPABILITIES.md](docs/CAPABILITIES.md), [docs/VERSIONS.md](docs/VERSIONS.md), [docs/FEATURE_MAP.md](docs/FEATURE_MAP.md).
 
-Profiles and secrets live in `%USERPROFILE%\.dctm-admin\` (or `~/.dctm-admin`).
+Profiles and secrets live in `%USERPROFILE%\.ecm-dev-workbench\` (or `~/.ecm-dev-workbench`). An existing `%USERPROFILE%\.dctm-admin` folder is moved there on first launch.

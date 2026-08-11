@@ -23,10 +23,10 @@ dependencies {
 val uiDir = rootProject.layout.projectDirectory.dir("modules/ui")
 val packagingDir = rootProject.layout.projectDirectory.dir("packaging")
 val distDir = rootProject.layout.buildDirectory.dir("dist")
-val portableDir = rootProject.layout.buildDirectory.dir("dist/dctm-workbench")
+val portableDir = rootProject.layout.buildDirectory.dir("dist/ECM-Dev-Workbench-portable")
 val jpackageInput = layout.buildDirectory.dir("jpackage-input")
 val jlinkDir = layout.buildDirectory.dir("jlink-runtime")
-val appImageDir = rootProject.layout.buildDirectory.dir("dist/DCTMWorkbench")
+val appImageDir = rootProject.layout.buildDirectory.dir("dist/ECM-Dev-Workbench")
 val windows = System.getProperty("os.name").lowercase().contains("win")
 val appVersion = version.toString().substringBefore("-")
 
@@ -63,7 +63,7 @@ val npmBuild by tasks.registering(Exec::class) {
 }
 
 tasks.named<BootJar>("bootJar") {
-    archiveFileName.set("dctm-workbench.jar")
+    archiveFileName.set("ECM-Dev-Workbench.jar")
     dependsOn(npmBuild)
     from(uiDir.dir("dist")) {
         into("BOOT-INF/classes/static")
@@ -81,6 +81,7 @@ val packagePortable by tasks.registering(Copy::class) {
             "start-workbench.bat",
             "start-workbench.sh",
             "install-windows.ps1",
+            "install-windows.cmd",
             "uninstall-windows.ps1",
             "README.txt",
         )
@@ -91,7 +92,7 @@ val distZip by tasks.registering(Zip::class) {
     group = "distribution"
     description = "Zip of the portable package"
     dependsOn(packagePortable)
-    archiveFileName.set("dctm-workbench-$appVersion.zip")
+    archiveFileName.set("ECM-Dev-Workbench-$appVersion.zip")
     destinationDirectory.set(distDir)
     from(portableDir)
 }
@@ -155,13 +156,13 @@ val jpackageImage by tasks.registering(Exec::class) {
     commandLine(
         javaBin("jpackage").absolutePath,
         "--type", "app-image",
-        "--name", "DCTMWorkbench",
+        "--name", "ECM-Dev-Workbench",
         "--app-version", appVersion,
-        "--vendor", "DCTM Workbench",
+        "--vendor", "ECM-Dev-Workbench",
         "--description", "Documentum and Extended ECM developer workbench",
         "--dest", distDir.get().asFile.absolutePath,
         "--input", jpackageInput.get().asFile.absolutePath,
-        "--main-jar", "dctm-workbench.jar",
+        "--main-jar", "ECM-Dev-Workbench.jar",
         "--main-class", "org.springframework.boot.loader.launch.JarLauncher",
         "--runtime-image", jlinkDir.get().asFile.absolutePath,
         "--java-options", "-Dworkbench.desktop=true",
@@ -179,7 +180,12 @@ val packageAppImage by tasks.registering(Copy::class) {
     description = "App image with a bundled Java runtime (jpackage)"
     dependsOn(jpackageImage)
     onlyIf { javaBin("jpackage").isFile && javaBin("jlink").isFile }
-    from(packagingDir.file("start-workbench.bat"), packagingDir.file("uninstall-windows.ps1"))
+    from(
+        packagingDir.file("start-workbench.bat"),
+        packagingDir.file("install-windows.ps1"),
+        packagingDir.file("install-windows.cmd"),
+        packagingDir.file("uninstall-windows.ps1"),
+    )
     into(appImageDir)
 }
 
@@ -199,7 +205,7 @@ val installLocal by tasks.registering(Exec::class) {
     doFirst {
         val image = appImageDir.get().asFile
         val src =
-            if (image.resolve("DCTMWorkbench.exe").isFile || image.resolve("DCTMWorkbench").isFile) {
+            if (image.resolve("ECM-Dev-Workbench.exe").isFile || image.resolve("ECM-Dev-Workbench").isFile) {
                 image
             } else {
                 portableDir.get().asFile

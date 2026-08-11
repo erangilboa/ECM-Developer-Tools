@@ -3,7 +3,7 @@ server:
 
 spring:
   application:
-    name: dctm-workbench
+    name: ECM-Dev-Workbench
   web:
     resources:
       cache:
@@ -11,7 +11,7 @@ spring:
           max-age: 86400
 
 workbench:
-  home: ${user.home}/.dctm-admin
+  home: ${user.home}/.ecm-dev-workbench
   desktop: false
   open-browser: false
 

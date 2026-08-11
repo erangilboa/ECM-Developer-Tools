@@ -1,18 +1,18 @@
-# Install ECM Developer Tools
+# Install ECM-Dev-Workbench
 
 **Download the latest installation:** https://github.com/erangilboa/ECM-Developer-Tools/releases/latest
 
-Workbench for OpenText **Documentum** (repository browser, DQL, dump, jobs, IAPI, document viewer) and **Extended ECM / OTCS** (node browser, search, categories, Business Workspaces, scheduled agents). Full functionality list: [README.md](../README.md#functionality).
+**ECM-Dev-Workbench** for OpenText **Documentum** (repository browser, DQL, dump, jobs, IAPI, document viewer) and **Extended ECM / OTCS** (node browser, search, categories, Business Workspaces, scheduled agents). Full functionality list: [README.md](../README.md#functionality).
 
 ## Windows (recommended)
 
-1. Download **`ECM-Developer-Tools-*-windows-x64.zip`** from the [latest release](https://github.com/erangilboa/ECM-Developer-Tools/releases/latest).
+1. Download **`ECM-Developer-Tools-*-windows-x64.zip`** from the [latest release](https://github.com/erangilboa/ECM-Developer-Tools/releases/latest) — not “Source code”.
 2. Unzip it.
-3. Run `install-windows.ps1` (right-click → Run with PowerShell) **or** double-click `start-workbench.bat`.
+3. Double-click `install-windows.cmd` (or run `install-windows.ps1` with **no arguments**). You can also double-click `start-workbench.bat` to run without installing shortcuts.
 
 This package includes a Java runtime. You do not need to install a JDK.
 
-Shortcuts are created on the Start Menu and Desktop as **DCTM Workbench**. The browser opens at http://127.0.0.1:18080/.
+Shortcuts are created on the Start Menu and Desktop as **ECM-Dev-Workbench**. The browser opens at http://127.0.0.1:18080/.
 
 Uninstall:
 

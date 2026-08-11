@@ -1,20 +1,22 @@
-DCTM Workbench
-==============
+ECM-Dev-Workbench
+=================
 
 Portable package for OpenText Documentum and Extended ECM (OTCS).
 
 Requirements
 ------------
-Java 17 or later on PATH (not needed if this folder contains DCTMWorkbench.exe).
+Java 17 or later on PATH (not needed if this folder contains ECM-Dev-Workbench.exe).
 
 Install on Windows
 ------------------
-1. Right-click install-windows.ps1 -> Run with PowerShell
-   or from this folder:
+Double-click install-windows.cmd
+or:
 
-   powershell -ExecutionPolicy Bypass -File .\install-windows.ps1 -SourceDir .
+   powershell -ExecutionPolicy Bypass -File .\install-windows.ps1
 
-2. Start "DCTM Workbench" from the Start Menu or Desktop.
+Do not pass a SourceDir. The script installs from this unzipped folder.
+
+2. Start "ECM-Dev-Workbench" from the Start Menu or Desktop.
 
 Uninstall
 ---------
@@ -27,6 +29,6 @@ Linux/macOS:  ./start-workbench.sh
 
 Then open http://127.0.0.1:18080/ if the browser does not open.
 
-Profiles and logs:  %USERPROFILE%\.dctm-admin  (or ~/.dctm-admin)
+Profiles and logs:  %USERPROFILE%\.ecm-dev-workbench  (or ~/.ecm-dev-workbench)
 
 OpenText DFC/DFS JARs are not bundled. Point a live DFC profile at your local install.
