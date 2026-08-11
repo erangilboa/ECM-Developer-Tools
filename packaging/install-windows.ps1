@@ -91,6 +91,10 @@ if (-not $NoShortcuts) {
         $lnk.WorkingDirectory = $InstallDir
         $lnk.WindowStyle = 1
         $lnk.Description = "ECM-Dev-Workbench"
+        $ico = Join-Path $InstallDir "app-icon.ico"
+        if (Test-Path $ico) {
+            $lnk.IconLocation = "$ico,0"
+        }
         $lnk.Save()
         Write-Host "Shortcut: $lnkPath"
     }

@@ -77,11 +77,12 @@ button, input, select, textarea { font-family: inherit; font-size: 13px; }
   margin-top: 3px;
 }
 .brand-mark {
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  background: linear-gradient(145deg, #9ec0ff, #4f8dff 55%, #7c5cff);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12) inset, 0 8px 18px rgba(79, 141, 255, 0.28);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #05070c;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12) inset, 0 8px 18px rgba(20, 90, 160, 0.35);
 }
 
 .topbar select, .topbar input, .topbar button,
@@ -210,6 +211,16 @@ button.ghost { background: transparent; }
 
 .landing-page { max-width: 920px; margin: 0 auto; padding-top: 28px; }
 .landing-hero { margin-bottom: 8px; }
+.landing-logo {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  margin-bottom: 16px;
+  background: #05070c;
+  box-shadow: 0 12px 32px rgba(20, 80, 140, 0.35);
+}
 .eyebrow {
   margin: 0 0 8px;
   font-size: 11px;

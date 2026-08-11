@@ -5,13 +5,17 @@ import java.awt.Desktop;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GraphicsEnvironment;
+import java.awt.Image;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.io.InputStream;
 import java.net.URI;
+import javax.imageio.ImageIO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.BorderFactory;
+import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -70,6 +74,10 @@ public final class DesktopShell {
                 openBrowser(url);
             }
             JFrame frame = new JFrame("ECM-Dev-Workbench");
+            Image icon = loadAppIcon();
+            if (icon != null) {
+                frame.setIconImage(icon);
+            }
             frame.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
             frame.addWindowListener(new WindowAdapter() {
                 @Override
@@ -95,8 +103,11 @@ public final class DesktopShell {
             buttons.add(open);
             buttons.add(quit);
 
-            JPanel root = new JPanel(new BorderLayout(0, 12));
+            JPanel root = new JPanel(new BorderLayout(12, 12));
             root.setBorder(BorderFactory.createEmptyBorder(16, 18, 14, 18));
+            if (icon != null) {
+                root.add(new JLabel(new ImageIcon(icon.getScaledInstance(40, 40, Image.SCALE_SMOOTH))), BorderLayout.WEST);
+            }
             root.add(text, BorderLayout.CENTER);
             root.add(buttons, BorderLayout.SOUTH);
 
@@ -119,5 +130,13 @@ public final class DesktopShell {
                         "ECM-Dev-Workbench is already running.\n" + url,
                         "ECM-Dev-Workbench",
                         JOptionPane.INFORMATION_MESSAGE));
+    }
+
+    private static Image loadAppIcon() {
+        try (InputStream in = DesktopShell.class.getResourceAsStream("/static/logo.png")) {
+            return in == null ? null : ImageIO.read(in);
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

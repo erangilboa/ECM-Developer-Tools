@@ -57,17 +57,31 @@ val npmBuild by tasks.registering(Exec::class) {
         uiDir.file("package.json"),
         uiDir.file("vite.config.ts"),
         uiDir.file("tsconfig.json"),
+        uiDir.file("public/logo.png"),
     )
     outputs.dir(uiDir.dir("dist"))
     commandLine(npmCmd("run", "build"))
 }
 
+val generatedUi = layout.buildDirectory.dir("generated-ui")
+
+val copyUi by tasks.registering(Copy::class) {
+    group = "build"
+    dependsOn(npmBuild)
+    from(uiDir.dir("dist"))
+    into(generatedUi.map { it.dir("static") })
+}
+
+sourceSets.named("main") {
+    resources.srcDir(generatedUi)
+}
+
+tasks.named("processResources") {
+    dependsOn(copyUi)
+}
+
 tasks.named<BootJar>("bootJar") {
     archiveFileName.set("ECM-Dev-Workbench.jar")
-    dependsOn(npmBuild)
-    from(uiDir.dir("dist")) {
-        into("BOOT-INF/classes/static")
-    }
 }
 
 val packagePortable by tasks.registering(Copy::class) {
@@ -84,6 +98,8 @@ val packagePortable by tasks.registering(Copy::class) {
             "install-windows.cmd",
             "uninstall-windows.ps1",
             "README.txt",
+            "app-icon.ico",
+            "app-icon.png",
         )
     }
 }
@@ -168,6 +184,7 @@ val jpackageImage by tasks.registering(Exec::class) {
         "--java-options", "-Dworkbench.desktop=true",
         "--java-options", "-Dworkbench.open-browser=true",
         "--java-options", "-Dfile.encoding=UTF-8",
+        "--icon", packagingDir.file("app-icon.ico").asFile.absolutePath,
     )
     doFirst {
         distDir.get().asFile.mkdirs()
@@ -185,6 +202,7 @@ val packageAppImage by tasks.registering(Copy::class) {
         packagingDir.file("install-windows.ps1"),
         packagingDir.file("install-windows.cmd"),
         packagingDir.file("uninstall-windows.ps1"),
+        packagingDir.file("app-icon.ico"),
     )
     into(appImageDir)
 }

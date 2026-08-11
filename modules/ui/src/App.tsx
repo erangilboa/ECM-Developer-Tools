@@ -231,7 +231,7 @@ export function App() {
     <div className="app">
       <div className="topbar">
         <span className="brand">
-          <span className="brand-mark" aria-hidden />
+          <img className="brand-mark" src="/logo.png" width={32} height={32} alt="" />
           <span className="brand-text">
             ECM-Dev-Workbench
             <small>Documentum · xECM</small>
@@ -320,6 +320,7 @@ export function App() {
           {!session && (
             <div className="panel landing-page">
               <header className="landing-hero">
+                <img className="landing-logo" src="/logo.png" width={88} height={88} alt="ECM-Dev-Workbench" />
                 <p className="eyebrow">ECM-Dev-Workbench</p>
                 <h2>Connect to a repository</h2>
                 <p className="lede">
