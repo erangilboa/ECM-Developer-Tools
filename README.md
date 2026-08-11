@@ -2,9 +2,72 @@
 
 **[Download the latest installation](https://github.com/erangilboa/ECM-Developer-Tools/releases/latest)**
 
-Portable developer workbench for **OpenText Documentum** (21.2–24.2) and **OpenText Extended ECM / Content Server (OTCS)** (21.2–24.2).
+Local developer workbench for **OpenText Documentum** (21.2–24.2) and **OpenText Extended ECM / Content Server (OTCS)** (21.2–24.2). Connect to one product at a time; the sidebar, id labels, and tools switch to that platform.
 
-Documentum UX is inspired by DQL Buddy (not a clone). Extended ECM is a second product with nodes, categories, and Business Workspaces — not DQL.
+Documentum UX is inspired by DQL Buddy (not a clone): cabinets, DQL, dump, jobs, IAPI. Extended ECM is a separate product: volumes/nodes, CS search, categories, Business Workspaces, and scheduled agents — not DQL.
+
+You can work **offline against in-memory mocks** or **live** against Documentum REST / DFC and OTCS REST (optional OTDS). OpenText proprietary JARs are not redistributed; a live DFC profile points at your own install.
+
+## Functionality
+
+### Connections and profiles
+
+- Named connection profiles for Documentum (`MOCK_DFC`, `DCTM_REST`, `LIVE_DFC`, DFS stub) and Extended ECM (`MOCK_OTCS`, `OTCS_REST`, CWS stub).
+- First launch seeds **Local mock (Documentum)** and **Local mock (Extended ECM)**.
+- Username/password, HTTP Basic, OTCS ticket, and OTDS password-grant or stored bearer. Secrets are stored encrypted (AES-GCM) under `%USERPROFILE%\.dctm-admin\` (or `~/.dctm-admin`).
+- Connect from the landing cards or the top bar. The status chip shows product, protocol, repository, version, and user.
+- Capability matrix drives which modules appear. Unsupported calls fail with a clear message (for example “DQL requires a Documentum session”).
+- Mock sessions can be reset from the UI.
+
+### Documentum
+
+| Tool | What it does |
+| --- | --- |
+| **Repository browser** | Cabinet/folder tree, contents list, breadcrumbs, Up. Open folder, dump, view content, download, copy id/name. |
+| **Run DQL** | Monaco editor with highlighting and autocomplete (keywords, types, attributes). SELECT on all Documentum adapters; EXECUTE on mock/live DFC (REST is SELECT-only). Wide result grid, sticky first column, wrap toggle, dump from an object id. Saved queries and history. |
+| **Dump** | Object attributes split into **custom** vs **system** (`r_`, `i_`, `a_`). Editable non-readonly fields, save back to the session. Multiple dump tabs, Back to the screen you drilled from. |
+| **Document viewer** | Inline text, image, and PDF plus download. MIME guessed from type/content. |
+| **Jobs** | `dm_job` list with status, last return, last/next run. Detail pane, Sysadmin/Reports logs, View/Dump a report, **Run now**. |
+| **IAPI** | Thin REPL on mock or live DFC (`dump,c,<id>` and related commands). Not available on REST-only sessions. |
+
+Live DFC loads your DFC JARs in an isolated classloader (javax DFC vs Jakarta Spring Boot). REST talks HAL; `SELECT * FROM dm_job` is rewritten so job ids work. Versions 21.2–24.2; HTTP Basic for older labs, OTDS preferred on 23.4+.
+
+### Extended ECM / Content Server
+
+| Tool | What it does |
+| --- | --- |
+| **Node browser** | Volume/folder tree (Enterprise, Personal, …), contents list, breadcrumbs. Same actions as Documentum browse, using node ids. |
+| **Search** | CS search by name or node id; results open node details. |
+| **Node details** | Dump-style view: custom node/business fields vs core CS system metadata, plus **categories** (OTCS category attributes). SAP-linked Business Workspaces are flagged and treated as read-mostly. |
+| **Business Workspaces** | List/get workspaces (template, external system, BO type/id). Create-via-ECMLink is stubbed. |
+| **Jobs** | Content Server **scheduled agents** (notification, index, ECMLink/SAP sync, expiration, …) — not `dm_job`. Status, logs/reports, **Run now**. Live REST uses best-effort `/api/v2/agents` or `/api/v2/scheduledjobs`. |
+
+OTCS REST prefers v2 for nodes, search, and workspaces; refreshes `OTCSTicket` from response headers. Writes use `multipart/form-data` with a JSON `body` part. CGI root is stored on the profile (`/otcs/cs.exe`, `/otcs/cs/`, `/otcs/llisapi.dll`, …).
+
+### Shared workbench UX
+
+- One connected product at a time; sidebar is Documentum *or* Extended ECM, not a mix.
+- Drill-down (browser, DQL, search, jobs → dump) keeps a **Back** path; Esc returns. Browser/DQL/search state is kept while you inspect an object.
+- Visible action bar (Open, Dump/Details, View, Download, Copy). Right-click is a real menu — no typed `prompt()`.
+- Activity log (collapsible) at the bottom.
+- Installed app: status window, opens http://127.0.0.1:18080/, Quit stops the server. If the port is already in use, it reopens the existing instance.
+
+### Mock repositories (no Content Server)
+
+| Mock | Seeded content |
+| --- | --- |
+| Documentum FakeDocbase | Cabinets/folders, sample documents (including a viewable contract), subset DQL/IAPI, `dm_job` plus Sysadmin/Reports logs. |
+| OTCS FakeOtcs | Volumes, folders, documents, categories, Business Workspace, scheduled agents and agent log nodes. |
+
+Enough to learn the UI and exercise dump, content, DQL, search, and jobs without a docbase or CS.
+
+### Stubbed (SPI present, UI placeholder)
+
+ScriptRunner, DCTM REST explorer, DFS explorer, ACLs, users/groups, workflows, CWS explorer, ECMLink create-workspace, OTDS browser SSO.
+
+### Out of scope
+
+Consistency fixer (deliberately not included).
 
 ## No Content Server required for development
 

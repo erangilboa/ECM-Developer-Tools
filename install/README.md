@@ -2,6 +2,8 @@
 
 **Download the latest installation:** https://github.com/erangilboa/ECM-Developer-Tools/releases/latest
 
+Workbench for OpenText **Documentum** (repository browser, DQL, dump, jobs, IAPI, document viewer) and **Extended ECM / OTCS** (node browser, search, categories, Business Workspaces, scheduled agents). Full functionality list: [README.md](../README.md#functionality).
+
 ## Windows (recommended)
 
 1. Download **`ECM-Developer-Tools-*-windows-x64.zip`** from the [latest release](https://github.com/erangilboa/ECM-Developer-Tools/releases/latest).
