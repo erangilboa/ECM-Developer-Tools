@@ -4,7 +4,7 @@
 
 Local developer workbench for **OpenText Documentum** (21.2–24.2) and **OpenText Extended ECM / Content Server (OTCS)** (21.2–24.2). Connect to one product at a time; the sidebar, id labels, and tools switch to that platform.
 
-Documentum UX is inspired by DQL Buddy (not a clone): cabinets, DQL, dump, jobs, IAPI. Extended ECM is a separate product: volumes/nodes, CS search, categories, Business Workspaces, and scheduled agents — not DQL.
+Documentum: cabinets, DQL, dump, jobs, IAPI. Extended ECM is a separate product: volumes/nodes, CS search, categories, Business Workspaces, and scheduled agents — not DQL.
 
 You can work **offline against in-memory mocks** or **live** against Documentum REST / DFC and OTCS REST (optional OTDS). OpenText proprietary JARs are not redistributed; a live DFC profile points at your own install.
 

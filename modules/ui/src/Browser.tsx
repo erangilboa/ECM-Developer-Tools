@@ -193,7 +193,7 @@ export function Browser({
 
   return (
     <div className="panel fill">
-      <div className="row">
+      <div className="page-toolbar">
         <button type="button" className="back" onClick={goUp} disabled={path.length === 0}>
           ← Up
         </button>
@@ -214,7 +214,7 @@ export function Browser({
       </div>
       <ActionBar
         actions={actionsFor(selected)}
-        hint="Select an item, then use the buttons. Right-click opens the same menu."
+        hint="Select a row, then use an action. Right-click opens the same menu."
       />
       <div className="browse-split">
         <div className="tree" role="tree" aria-label={rootLabel}>

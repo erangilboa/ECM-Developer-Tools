@@ -1,6 +1,6 @@
 # Feature map
 
-## Documentum (DQL Buddy–inspired)
+## Documentum
 
 | Module | Status |
 | --- | --- |

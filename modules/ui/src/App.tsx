@@ -4,6 +4,7 @@ import { ActionBar, ContextMenu, objectIdColumn, type ObjectAction } from "./Act
 import { api } from "./api";
 import { Browser } from "./Browser";
 import { DocumentViewer } from "./DocumentViewer";
+import { NavGlyph } from "./NavGlyph";
 import { ProductLockup, ProductLogo } from "./ProductLogo";
 import { DQL_FUNCTIONS, DQL_KEYWORDS, registerDql } from "./dqlLanguage";
 import type {
@@ -27,14 +28,14 @@ function applyWorkbenchTheme(monaco: any) {
     inherit: true,
     rules: [],
     colors: {
-      "editor.background": "#161922",
-      "editor.foreground": "#dce1ea",
-      "editorLineNumber.foreground": "#5d6578",
-      "editor.lineHighlightBackground": "#1e2330",
-      "editor.selectionBackground": "#3d6ea866",
-      "editorCursor.foreground": "#7eb0ff",
-      "editorWidget.background": "#1c202a",
-      "editorWidget.border": "#2d3342",
+      "editor.background": "#12161f",
+      "editor.foreground": "#e7ebf4",
+      "editorLineNumber.foreground": "#5a6274",
+      "editor.lineHighlightBackground": "#1a2030",
+      "editor.selectionBackground": "#4f8dff55",
+      "editorCursor.foreground": "#9ec0ff",
+      "editorWidget.background": "#171c27",
+      "editorWidget.border": "#2c3446",
     },
   });
   monaco.editor.setTheme("workbench");
@@ -45,33 +46,49 @@ loader.init().then((monaco) => {
   applyWorkbenchTheme(monaco);
 });
 
-type NavItem = { id: string; label: string; cap?: string; stub?: boolean; dump?: boolean };
+type NavGroup = "workspace" | "query" | "ops" | "more";
+type NavItem = {
+  id: string;
+  label: string;
+  icon: string;
+  group: NavGroup;
+  cap?: string;
+  stub?: boolean;
+  dump?: boolean;
+};
+
+const NAV_GROUPS: { id: NavGroup; label: string }[] = [
+  { id: "workspace", label: "Workspace" },
+  { id: "query", label: "Query" },
+  { id: "ops", label: "Operations" },
+  { id: "more", label: "More" },
+];
 
 const DOCUMENTUM_NAV: NavItem[] = [
-  { id: "browser", label: "Repository browser", cap: "BROWSE" },
-  { id: "dql", label: "Run DQL", cap: "DQL_SELECT" },
-  { id: "jobs", label: "Jobs", cap: "JOB_LIST" },
-  { id: "dump", label: "Dump", dump: true },
-  { id: "iapi", label: "IAPI", cap: "IAPI" },
-  { id: "scriptrunner", label: "ScriptRunner", stub: true },
-  { id: "rest-explorer", label: "REST explorer", stub: true },
-  { id: "dfs", label: "DFS", stub: true },
-  { id: "acl", label: "ACLs", stub: true },
-  { id: "users", label: "Users / groups", stub: true },
-  { id: "workflows", label: "Workflows", stub: true },
-  { id: "otds-sso", label: "OTDS SSO", stub: true },
+  { id: "browser", label: "Browse", icon: "folder", group: "workspace", cap: "BROWSE" },
+  { id: "dql", label: "DQL", icon: "code", group: "query", cap: "DQL_SELECT" },
+  { id: "jobs", label: "Jobs", icon: "clock", group: "ops", cap: "JOB_LIST" },
+  { id: "dump", label: "Dump", icon: "inspect", group: "ops", dump: true },
+  { id: "iapi", label: "IAPI", icon: "terminal", group: "more", cap: "IAPI" },
+  { id: "scriptrunner", label: "ScriptRunner", icon: "code", group: "more", stub: true },
+  { id: "rest-explorer", label: "REST explorer", icon: "search", group: "more", stub: true },
+  { id: "dfs", label: "DFS", icon: "workspace", group: "more", stub: true },
+  { id: "acl", label: "ACLs", icon: "inspect", group: "more", stub: true },
+  { id: "users", label: "Users / groups", icon: "workspace", group: "more", stub: true },
+  { id: "workflows", label: "Workflows", icon: "clock", group: "more", stub: true },
+  { id: "otds-sso", label: "OTDS SSO", icon: "search", group: "more", stub: true },
 ];
 
 const XECM_NAV: NavItem[] = [
-  { id: "browser", label: "Node browser", cap: "BROWSE" },
-  { id: "search", label: "Search", cap: "CS_SEARCH" },
-  { id: "workspaces", label: "Business Workspaces", cap: "BUSINESS_WORKSPACE" },
-  { id: "jobs", label: "Jobs", cap: "JOB_LIST" },
-  { id: "dump", label: "Node details", dump: true },
-  { id: "cws", label: "CWS", stub: true },
-  { id: "ecmlink", label: "ECMLink create", stub: true },
-  { id: "users", label: "Users / groups", stub: true },
-  { id: "otds-sso", label: "OTDS SSO", stub: true },
+  { id: "browser", label: "Browse", icon: "folder", group: "workspace", cap: "BROWSE" },
+  { id: "workspaces", label: "Workspaces", icon: "workspace", group: "workspace", cap: "BUSINESS_WORKSPACE" },
+  { id: "search", label: "Search", icon: "search", group: "query", cap: "CS_SEARCH" },
+  { id: "jobs", label: "Jobs", icon: "clock", group: "ops", cap: "JOB_LIST" },
+  { id: "dump", label: "Details", icon: "inspect", group: "ops", dump: true },
+  { id: "cws", label: "CWS", icon: "code", group: "more", stub: true },
+  { id: "ecmlink", label: "ECMLink create", icon: "workspace", group: "more", stub: true },
+  { id: "users", label: "Users / groups", icon: "inspect", group: "more", stub: true },
+  { id: "otds-sso", label: "OTDS SSO", icon: "search", group: "more", stub: true },
 ];
 
 const DCTM_STUB_IDS = new Set(DOCUMENTUM_NAV.filter((n) => n.stub || n.id === "iapi").map((n) => n.id));
@@ -215,7 +232,10 @@ export function App() {
       <div className="topbar">
         <span className="brand">
           <span className="brand-mark" aria-hidden />
-          Workbench
+          <span className="brand-text">
+            ECM Tools
+            <small>Developer workbench</small>
+          </span>
         </span>
         <select value={profileId} onChange={(e) => setProfileId(e.target.value)}>
           <optgroup label="Documentum">
@@ -266,47 +286,81 @@ export function App() {
         <div className="nav">
           {session && (
             <div className="nav-section">
-              <ProductLogo product={session.product} size={16} />
-              {session.product === "EXTENDED_ECM" ? "Extended ECM" : "Documentum"}
+              <ProductLogo product={session.product} size={18} />
+              <div>
+                <div className="nav-product">{session.product === "EXTENDED_ECM" ? "Extended ECM" : "Documentum"}</div>
+                <div className="nav-repo">{session.repository}</div>
+              </div>
             </div>
           )}
-          {nav.map((n) => (
-            <button
-              key={n.id}
-              className={`${module === n.id ? "active" : ""} ${n.stub ? "stub" : ""}`}
-              onClick={() => goModule(n.id)}
-            >
-              {n.label}
-              {n.dump && dumps.length > 0 ? ` (${dumps.length})` : ""}
-            </button>
-          ))}
+          {NAV_GROUPS.map((group) => {
+            const items = nav.filter((n) => n.group === group.id);
+            if (items.length === 0) return null;
+            return (
+              <div key={group.id} className="nav-group">
+                <div className="nav-group-label">{group.label}</div>
+                {items.map((n) => (
+                  <button
+                    key={n.id}
+                    className={`${module === n.id ? "active" : ""} ${n.stub ? "stub" : ""}`}
+                    onClick={() => goModule(n.id)}
+                  >
+                    <span className="nav-ico">
+                      <NavGlyph name={n.icon} />
+                    </span>
+                    <span className="nav-label">{n.label}</span>
+                    {n.dump && dumps.length > 0 ? <span className="nav-count">{dumps.length}</span> : null}
+                  </button>
+                ))}
+              </div>
+            );
+          })}
         </div>
         <div className="main">
           {!session && (
-            <div className="panel">
-              <h2>Choose a platform</h2>
-              <p className="muted">
-                Documentum (DQL, DFC, jobs) and Extended ECM / OTCS (nodes, categories, workspaces) are separate
-                products. Connect to one profile — the sidebar only shows that platform.
-              </p>
+            <div className="panel landing-page">
+              <header className="landing-hero">
+                <p className="eyebrow">ECM Developer Tools</p>
+                <h2>Connect to a repository</h2>
+                <p className="lede">
+                  Documentum and Extended ECM are separate products. Connect to one profile — the workbench only shows
+                  that platform.
+                </p>
+              </header>
               <div className="landing">
-                <div className="card">
+                <div className="card dctm-card">
                   <ProductLockup product="DOCUMENTUM" />
-                  <p className="muted">Repository browser, DQL, dump, jobs, reports, IAPI</p>
-                  {dctmProfiles.map((p) => (
-                    <button key={p.id} className="primary" onClick={() => connect(p.id)}>
-                      {p.name}
-                    </button>
-                  ))}
+                  <ul className="chips">
+                    <li>Browse</li>
+                    <li>DQL</li>
+                    <li>Dump</li>
+                    <li>Jobs</li>
+                    <li>IAPI</li>
+                  </ul>
+                  <div className="card-actions">
+                    {dctmProfiles.map((p) => (
+                      <button key={p.id} className="primary" onClick={() => connect(p.id)}>
+                        {p.name}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="card">
+                <div className="card xecm-card">
                   <ProductLockup product="EXTENDED_ECM" />
-                  <p className="muted">Node browser, search, workspaces, scheduled agents, categories</p>
-                  {xecmProfiles.map((p) => (
-                    <button key={p.id} className="primary" onClick={() => connect(p.id)}>
-                      {p.name}
-                    </button>
-                  ))}
+                  <ul className="chips">
+                    <li>Browse</li>
+                    <li>Search</li>
+                    <li>Workspaces</li>
+                    <li>Categories</li>
+                    <li>Agents</li>
+                  </ul>
+                  <div className="card-actions">
+                    {xecmProfiles.map((p) => (
+                      <button key={p.id} className="primary" onClick={() => connect(p.id)}>
+                        {p.name}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -471,7 +525,7 @@ function DqlStudio({
 
   return (
     <div className="panel fill">
-      <div className="row">
+      <div className="page-toolbar">
         <button className="primary" onClick={run}>
           Run
         </button>
@@ -742,7 +796,7 @@ function Jobs({
   const xecm = session.product === "EXTENDED_ECM";
   return (
     <div className="panel fill">
-      <div className="row">
+      <div className="page-toolbar">
         <button
           onClick={() => {
             load();
@@ -878,8 +932,8 @@ function SearchPanel({
   const [result, setResult] = useState<GridResult | null>(null);
   return (
     <div className="panel fill">
-      <div className="row">
-        <input style={{ flex: 1 }} placeholder="CS search (name or node id)" value={q} onChange={(e) => setQ(e.target.value)} />
+      <div className="page-toolbar">
+        <input style={{ flex: 1 }} placeholder="Search by name or node id" value={q} onChange={(e) => setQ(e.target.value)} />
         <button
           className="primary"
           onClick={async () => {
@@ -1188,8 +1242,14 @@ function DumpWorkspace({
       {xecm && dump.sapLinked && (
         <div className="warn">SAP-linked Business Workspace — mutations are blocked.</div>
       )}
-      <div>
-        <strong>{dump.objectName}</strong> <span className="muted">{dump.typeName} · {dump.id}</span>
+      <div className="object-hero">
+        <div>
+          <div className="object-hero-name">{dump.objectName || dump.id}</div>
+          <div className="object-hero-meta">
+            <span className="pill scheduled">{dump.typeName}</span>
+            <code>{dump.id}</code>
+          </div>
+        </div>
       </div>
       <div className="dump-sections">
         <AttrSection
