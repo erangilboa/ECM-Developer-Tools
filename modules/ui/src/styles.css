@@ -210,14 +210,20 @@ button.ghost { background: transparent; }
 .field input, .field select { width: 100%; }
 
 .landing-page { max-width: 920px; margin: 0 auto; padding-top: 28px; }
-.landing-hero { margin-bottom: 8px; }
+.landing-hero {
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
 .landing-logo {
   width: 88px;
   height: 88px;
   border-radius: 50%;
   object-fit: cover;
   display: block;
-  margin-bottom: 16px;
+  margin: 0 auto 16px;
   background: #05070c;
   box-shadow: 0 12px 32px rgba(20, 80, 140, 0.35);
 }
@@ -229,7 +235,7 @@ button.ghost { background: transparent; }
   text-transform: uppercase;
   color: var(--accent);
 }
-.lede { max-width: 46rem; font-size: 15px; color: var(--text-secondary); margin: 8px 0 18px; }
+.lede { max-width: 46rem; font-size: 15px; color: var(--text-secondary); margin: 8px auto 18px; }
 .landing { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 .card {
   border: 1px solid var(--border);
@@ -632,8 +638,23 @@ a:hover { text-decoration: underline; }
   min-height: 168px;
   border: 1px solid var(--border);
   border-radius: 12px;
-  overflow: hidden;
+  overflow: visible;
   background: #12161f;
+}
+.editor .monaco-editor {
+  border-radius: 12px;
+}
+.monaco-editor .suggest-widget,
+.overflowingContentWidgets .suggest-widget {
+  letter-spacing: 0;
+  font-feature-settings: normal;
+  font-family: var(--mono);
+  z-index: 50;
+}
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row,
+.overflowingContentWidgets .suggest-widget .monaco-list .monaco-list-row {
+  font-family: var(--mono);
+  letter-spacing: 0;
 }
 .dump-grid td input { width: 100%; background: transparent; border-color: transparent; padding: 4px 6px; }
 .dump-grid td input:hover, .dump-grid td input:focus { background: var(--bg-3); border-color: var(--border); }

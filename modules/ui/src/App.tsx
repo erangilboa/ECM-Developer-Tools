@@ -488,19 +488,28 @@ function DqlStudio({
       monaco.languages.registerCompletionItemProvider("dql", {
         triggerCharacters: [" ", ".", ","],
         provideCompletionItems: (model: any, position: any) => {
+          const word = model.getWordUntilPosition(position);
+          const range = {
+            startLineNumber: position.lineNumber,
+            endLineNumber: position.lineNumber,
+            startColumn: word.startColumn,
+            endColumn: word.endColumn,
+          };
           const text = model.getValue().slice(0, model.getOffsetAt(position)).toUpperCase();
           const suggestions: any[] = [];
           const kw = [...DQL_KEYWORDS, ...DQL_FUNCTIONS].map((k) => ({
             label: k,
             kind: monaco.languages.CompletionItemKind.Keyword,
             insertText: k,
+            range,
           }));
           if (text.includes("FROM") && !text.trim().endsWith("FROM")) {
             types.forEach((t) =>
               suggestions.push({
-                label: t.name,
+                label: String(t.name),
                 kind: monaco.languages.CompletionItemKind.Class,
-                insertText: t.name,
+                insertText: String(t.name),
+                range,
               })
             );
           }
@@ -509,9 +518,10 @@ function DqlStudio({
             const t = types.find((x) => x.name.toLowerCase() === fromMatch[1].toLowerCase());
             t?.attributes.forEach((a) =>
               suggestions.push({
-                label: a,
+                label: String(a),
                 kind: monaco.languages.CompletionItemKind.Field,
-                insertText: a,
+                insertText: String(a),
+                range,
               })
             );
           }
@@ -594,7 +604,15 @@ function DqlStudio({
             applyWorkbenchTheme(monaco);
             onMount(editor, monaco);
           }}
-          options={{ minimap: { enabled: false }, fontSize: 13, padding: { top: 8, bottom: 8 } }}
+          options={{
+            minimap: { enabled: false },
+            fontSize: 13,
+            fontFamily: "Cascadia Mono, Consolas, ui-monospace, monospace",
+            padding: { top: 8, bottom: 8 },
+            fixedOverflowWidgets: true,
+            suggestFontSize: 13,
+            suggestLineHeight: 22,
+          }}
         />
       </div>
       {result && (
