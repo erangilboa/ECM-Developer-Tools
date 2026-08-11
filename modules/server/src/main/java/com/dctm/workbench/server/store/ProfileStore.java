@@ -1,0 +1,189 @@
+package com.dctm.workbench.server.store;
+
+import com.dctm.workbench.core.AuthMode;
+import com.dctm.workbench.core.ConnectionProfile;
+import com.dctm.workbench.core.Json;
+import com.dctm.workbench.core.Product;
+import com.dctm.workbench.core.Protocol;
+import com.dctm.workbench.core.SavedQuery;
+import com.fasterxml.jackson.core.type.TypeReference;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+import javax.crypto.SecretKey;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
+@Component
+public class ProfileStore {
+
+    private final Path home;
+    private final Path profilesFile;
+    private final Path queriesFile;
+    private final SecretKey key;
+    private final Map<String, String> secrets = new ConcurrentHashMap<>();
+
+    public ProfileStore(@Value("${workbench.home}") String homeDir) {
+        this.home = Path.of(homeDir);
+        this.profilesFile = home.resolve("profiles.json");
+        this.queriesFile = home.resolve("queries.json");
+        this.key = AesGcm.loadOrCreate(home.resolve("master.key"));
+        loadSecrets();
+        ensureDefaults();
+    }
+
+    public synchronized List<ConnectionProfile> list() {
+        return readProfiles();
+    }
+
+    public synchronized Optional<ConnectionProfile> get(String id) {
+        return readProfiles().stream().filter(p -> id.equals(p.getId())).findFirst();
+    }
+
+    public synchronized ConnectionProfile save(ConnectionProfile profile, String secret) {
+        List<ConnectionProfile> all = readProfiles();
+        if (profile.getId() == null || profile.getId().isBlank()) {
+            profile.setId(UUID.randomUUID().toString());
+        }
+        if (profile.getSecretId() == null) {
+            profile.setSecretId("secret-" + profile.getId());
+        }
+        boolean replaced = false;
+        for (int i = 0; i < all.size(); i++) {
+            if (all.get(i).getId().equals(profile.getId())) {
+                all.set(i, profile);
+                replaced = true;
+                break;
+            }
+        }
+        if (!replaced) {
+            all.add(profile);
+        }
+        writeProfiles(all);
+        if (secret != null) {
+            secrets.put(profile.getSecretId(), secret);
+            persistSecrets();
+        }
+        return profile;
+    }
+
+    public synchronized void delete(String id) {
+        List<ConnectionProfile> all = readProfiles();
+        all.removeIf(p -> id.equals(p.getId()));
+        writeProfiles(all);
+    }
+
+    public char[] secretFor(ConnectionProfile profile) {
+        if (profile.getSecretId() == null) {
+            return new char[0];
+        }
+        String s = secrets.get(profile.getSecretId());
+        return s == null ? new char[0] : s.toCharArray();
+    }
+
+    public synchronized List<SavedQuery> queries() {
+        try {
+            if (!Files.exists(queriesFile)) {
+                return new ArrayList<>();
+            }
+            return Json.mapper().readValue(queriesFile.toFile(), new TypeReference<>() {
+            });
+        } catch (Exception e) {
+            return new ArrayList<>();
+        }
+    }
+
+    public synchronized SavedQuery saveQuery(SavedQuery query) {
+        List<SavedQuery> all = queries();
+        if (query.getId() == null) {
+            query.setId(UUID.randomUUID().toString());
+        }
+        all.removeIf(q -> q.getId().equals(query.getId()));
+        all.add(query);
+        try {
+            Files.createDirectories(home);
+            Json.mapper().writerWithDefaultPrettyPrinter().writeValue(queriesFile.toFile(), all);
+        } catch (Exception e) {
+            throw new com.dctm.workbench.core.SessionException("Cannot save queries", e);
+        }
+        return query;
+    }
+
+    private void ensureDefaults() {
+        List<ConnectionProfile> all = readProfiles();
+        if (!all.isEmpty()) {
+            return;
+        }
+        ConnectionProfile dctm = new ConnectionProfile();
+        dctm.setName("Local mock (Documentum)");
+        dctm.setProduct(Product.DOCUMENTUM);
+        dctm.setProtocol(Protocol.MOCK_DFC);
+        dctm.setRepository("mock");
+        dctm.setUsername("dmadmin");
+        dctm.setReportedVersion("24.2");
+        save(dctm, "");
+
+        ConnectionProfile otcs = new ConnectionProfile();
+        otcs.setName("Local mock (Extended ECM)");
+        otcs.setProduct(Product.EXTENDED_ECM);
+        otcs.setProtocol(Protocol.MOCK_OTCS);
+        otcs.setRepository("mock-otcs");
+        otcs.setUsername("Admin");
+        otcs.setReportedVersion("24.2");
+        otcs.setAuthMode(AuthMode.PASSWORD);
+        save(otcs, "");
+    }
+
+    private List<ConnectionProfile> readProfiles() {
+        try {
+            if (!Files.exists(profilesFile)) {
+                return new ArrayList<>();
+            }
+            return Json.mapper().readValue(profilesFile.toFile(), new TypeReference<>() {
+            });
+        } catch (Exception e) {
+            return new ArrayList<>();
+        }
+    }
+
+    private void writeProfiles(List<ConnectionProfile> all) {
+        try {
+            Files.createDirectories(home);
+            Json.mapper().writerWithDefaultPrettyPrinter().writeValue(profilesFile.toFile(), all);
+        } catch (Exception e) {
+            throw new com.dctm.workbench.core.SessionException("Cannot save profiles", e);
+        }
+    }
+
+    private void loadSecrets() {
+        Path file = home.resolve("secrets.enc");
+        if (!Files.exists(file)) {
+            return;
+        }
+        try {
+            String json = AesGcm.decrypt(key, Files.readString(file));
+            Map<String, String> map = Json.mapper().readValue(json, new TypeReference<LinkedHashMap<String, String>>() {
+            });
+            secrets.putAll(map);
+        } catch (Exception ignored) {
+            // start empty
+        }
+    }
+
+    private void persistSecrets() {
+        try {
+            Files.createDirectories(home);
+            String json = Json.mapper().writeValueAsString(secrets);
+            Files.writeString(home.resolve("secrets.enc"), AesGcm.encrypt(key, json));
+        } catch (Exception e) {
+            throw new com.dctm.workbench.core.SessionException("Cannot persist secrets", e);
+        }
+    }
+}

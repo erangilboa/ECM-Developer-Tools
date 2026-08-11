@@ -1,0 +1,151 @@
+{
+  "version": "24.2",
+  "nodes": [
+    {
+      "id": 2000,
+      "name": "Enterprise",
+      "type": 141,
+      "parentId": -1,
+      "volume": true
+    },
+    {
+      "id": 1000,
+      "name": "Personal",
+      "type": 142,
+      "parentId": -1,
+      "volume": true
+    },
+    {
+      "id": 3000,
+      "name": "Projects",
+      "type": 0,
+      "parentId": 2000
+    },
+    {
+      "id": 4000,
+      "name": "Pump-100",
+      "type": 848,
+      "parentId": 3000,
+      "extSystemId": "SAP",
+      "boType": "EQUIPMENT",
+      "boId": "1000001",
+      "templateId": "9000",
+      "categories": [
+        {
+          "categoryId": "26196",
+          "categoryName": "Equipment",
+          "attributes": {
+            "26196_2": ["Pump-100"],
+            "26196_3": ["Germany"]
+          }
+        }
+      ]
+    },
+    {
+      "id": 5000,
+      "name": "Manual.pdf",
+      "type": 144,
+      "parentId": 4000,
+      "content": "PDF mock content",
+      "categories": [
+        {
+          "categoryId": "26196",
+          "categoryName": "Equipment",
+          "attributes": {
+            "26196_2": ["Pump-100"]
+          }
+        }
+      ]
+    },
+    {
+      "id": 5100,
+      "name": "Notes.txt",
+      "type": 144,
+      "parentId": 4000,
+      "content": "Equipment notes for Pump-100.\nInspection due 2026-09-01.\nMock OTCS content for the workbench viewer.\n"
+    },
+    {
+      "id": 1100,
+      "name": "My drafts",
+      "type": 0,
+      "parentId": 1000
+    },
+    {
+      "id": 1200,
+      "name": "Agent Reports",
+      "type": 0,
+      "parentId": 1000
+    },
+    {
+      "id": 9101,
+      "name": "Notification_2026-08-11.log",
+      "type": 144,
+      "parentId": 1200,
+      "content": "Agent Report: Notification\nThread: llserver\nStarted: 2026-08-11T02:00:00\nFinished: 2026-08-11T02:00:04\nReturn: 0\n\nSent 12 notifications.\nNo errors.\n"
+    },
+    {
+      "id": 9102,
+      "name": "SAP_Business_Workspace_Sync_2026-08-11.log",
+      "type": 144,
+      "parentId": 1200,
+      "content": "Agent Report: SAP Business Workspace Sync\nThread: ecmlink\nStarted: 2026-08-11T01:45:00\nFinished: 2026-08-11T01:45:18\nReturn: 0\n\nSynced EQUIPMENT/1000001 Pump-100.\nCategories applied: Equipment.\n"
+    },
+    {
+      "id": 9103,
+      "name": "Search_Index_2026-08-10.log",
+      "type": 144,
+      "parentId": 1200,
+      "content": "Agent Report: Search Index\nThread: indexagent\nStarted: 2026-08-10T22:00:00\nFinished: 2026-08-10T22:00:02\nReturn: 1\n\nERROR: index volume is over 90% capacity.\nAgent disabled.\n"
+    }
+  ],
+  "agents": [
+    {
+      "id": 8001,
+      "name": "Notification",
+      "thread": "llserver",
+      "enabled": true,
+      "interval": "5 min",
+      "lastRun": "2026-08-11T02:00:00",
+      "nextRun": "2026-08-11T02:05:00",
+      "lastReturn": "0",
+      "currentStatus": "Sent 12 notifications",
+      "reports": [9101]
+    },
+    {
+      "id": 8002,
+      "name": "SAP Business Workspace Sync",
+      "thread": "ecmlink",
+      "enabled": true,
+      "interval": "15 min",
+      "lastRun": "2026-08-11T01:45:00",
+      "nextRun": "2026-08-11T02:00:00",
+      "lastReturn": "0",
+      "currentStatus": "Synced 1 EQUIPMENT workspace",
+      "reports": [9102]
+    },
+    {
+      "id": 8003,
+      "name": "Search Index",
+      "thread": "indexagent",
+      "enabled": false,
+      "interval": "1 hour",
+      "lastRun": "2026-08-10T22:00:00",
+      "nextRun": "",
+      "lastReturn": "1",
+      "currentStatus": "Disabled: index volume full",
+      "reports": [9103]
+    },
+    {
+      "id": 8004,
+      "name": "Expiration",
+      "thread": "llserver",
+      "enabled": true,
+      "interval": "1 day",
+      "lastRun": "2026-08-11T00:00:00",
+      "nextRun": "2026-08-12T00:00:00",
+      "lastReturn": "0",
+      "currentStatus": "No expired items",
+      "reports": []
+    }
+  ]
+}

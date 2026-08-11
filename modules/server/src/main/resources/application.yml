@@ -1,0 +1,20 @@
+server:
+  port: 18080
+
+spring:
+  application:
+    name: dctm-workbench
+  web:
+    resources:
+      cache:
+        cachecontrol:
+          max-age: 86400
+
+workbench:
+  home: ${user.home}/.dctm-admin
+  desktop: false
+  open-browser: false
+
+logging:
+  file:
+    name: ${workbench.home}/logs/workbench.log

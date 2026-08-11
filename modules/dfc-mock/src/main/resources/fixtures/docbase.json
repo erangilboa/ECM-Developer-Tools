@@ -1,0 +1,284 @@
+{
+  "version": "24.2",
+  "repository": "mock",
+  "types": [
+    {
+      "name": "dm_sysobject",
+      "superName": null,
+      "attributes": ["r_object_id", "object_name", "r_object_type", "r_creation_date", "r_modify_date", "owner_name", "acl_name", "r_lock_owner", "r_version_label", "a_content_type", "r_page_cnt"]
+    },
+    {
+      "name": "dm_folder",
+      "superName": "dm_sysobject",
+      "attributes": ["r_folder_path"]
+    },
+    {
+      "name": "dm_cabinet",
+      "superName": "dm_folder",
+      "attributes": ["is_private"]
+    },
+    {
+      "name": "dm_document",
+      "superName": "dm_sysobject",
+      "attributes": ["a_content_type", "title", "subject"]
+    },
+    {
+      "name": "dm_user",
+      "superName": null,
+      "attributes": ["r_object_id", "user_name", "user_login_name", "user_address", "user_state"]
+    },
+    {
+      "name": "dm_group",
+      "superName": null,
+      "attributes": ["r_object_id", "group_name", "description"]
+    },
+    {
+      "name": "dm_acl",
+      "superName": null,
+      "attributes": ["r_object_id", "object_name", "description"]
+    },
+    {
+      "name": "dm_method",
+      "superName": "dm_sysobject",
+      "attributes": ["method_verb", "timeout_min"]
+    },
+    {
+      "name": "dm_job",
+      "superName": "dm_sysobject",
+      "attributes": ["method_name", "is_inactive", "run_now", "a_last_completion", "a_next_invocation", "run_interval", "method_id", "a_last_return", "a_current_status"]
+    }
+  ],
+  "objects": [
+    {
+      "id": "0c00000180000001",
+      "type": "dm_cabinet",
+      "parentId": null,
+      "attrs": {
+        "object_name": ["Temp"],
+        "r_object_type": ["dm_cabinet"],
+        "owner_name": ["dmadmin"],
+        "acl_name": ["dm_4500000180000001"],
+        "is_private": ["F"],
+        "r_folder_path": ["/Temp"],
+        "r_creation_date": ["2024-01-01T00:00:00"],
+        "r_modify_date": ["2024-01-01T00:00:00"]
+      }
+    },
+    {
+      "id": "0c00000180000002",
+      "type": "dm_cabinet",
+      "parentId": null,
+      "attrs": {
+        "object_name": ["System"],
+        "r_object_type": ["dm_cabinet"],
+        "owner_name": ["dmadmin"],
+        "acl_name": ["dm_4500000180000001"],
+        "is_private": ["F"],
+        "r_folder_path": ["/System"],
+        "r_creation_date": ["2024-01-01T00:00:00"],
+        "r_modify_date": ["2024-01-01T00:00:00"]
+      }
+    },
+    {
+      "id": "0b00000180000001",
+      "type": "dm_folder",
+      "parentId": "0c00000180000001",
+      "attrs": {
+        "object_name": ["Incoming"],
+        "r_object_type": ["dm_folder"],
+        "owner_name": ["dmadmin"],
+        "acl_name": ["dm_4500000180000001"],
+        "r_folder_path": ["/Temp/Incoming"],
+        "r_creation_date": ["2024-02-01T00:00:00"],
+        "r_modify_date": ["2024-02-01T00:00:00"]
+      }
+    },
+    {
+      "id": "0b00000180000002",
+      "type": "dm_folder",
+      "parentId": "0c00000180000002",
+      "attrs": {
+        "object_name": ["Config"],
+        "r_object_type": ["dm_folder"],
+        "owner_name": ["dmadmin"],
+        "acl_name": ["dm_4500000180000001"],
+        "r_folder_path": ["/System/Config"],
+        "r_creation_date": ["2024-02-01T00:00:00"],
+        "r_modify_date": ["2024-02-01T00:00:00"]
+      }
+    },
+    {
+      "id": "0b00000180000003",
+      "type": "dm_folder",
+      "parentId": "0c00000180000002",
+      "attrs": {
+        "object_name": ["Sysadmin"],
+        "r_object_type": ["dm_folder"],
+        "owner_name": ["dmadmin"],
+        "acl_name": ["dm_4500000180000001"],
+        "r_folder_path": ["/System/Sysadmin"],
+        "r_creation_date": ["2024-02-01T00:00:00"],
+        "r_modify_date": ["2024-02-01T00:00:00"]
+      }
+    },
+    {
+      "id": "0b00000180000004",
+      "type": "dm_folder",
+      "parentId": "0b00000180000003",
+      "attrs": {
+        "object_name": ["Reports"],
+        "r_object_type": ["dm_folder"],
+        "owner_name": ["dmadmin"],
+        "acl_name": ["dm_4500000180000001"],
+        "r_folder_path": ["/System/Sysadmin/Reports"],
+        "r_creation_date": ["2024-02-01T00:00:00"],
+        "r_modify_date": ["2024-02-01T00:00:00"]
+      }
+    },
+    {
+      "id": "0900000180000001",
+      "type": "dm_document",
+      "parentId": "0b00000180000001",
+      "content": "SAMPLE CONTRACT\n\nParty A: Acme Corp\nParty B: Mock Documentum\nEffective: 2024-03-01\n\nThis is a mock document for the workbench viewer.",
+      "attrs": {
+        "object_name": ["Sample Contract.txt"],
+        "r_object_type": ["dm_document"],
+        "title": ["Sample Contract"],
+        "subject": ["Demo"],
+        "owner_name": ["dmadmin"],
+        "acl_name": ["dm_4500000180000001"],
+        "a_content_type": ["crtext"],
+        "r_page_cnt": ["1"],
+        "r_version_label": ["1.0", "CURRENT"],
+        "r_lock_owner": [""],
+        "r_creation_date": ["2024-03-01T10:00:00"],
+        "r_modify_date": ["2024-03-01T10:00:00"]
+      }
+    },
+    {
+      "id": "0900000180000002",
+      "type": "dm_document",
+      "parentId": "0c00000180000001",
+      "content": "Hello from mock DFC",
+      "attrs": {
+        "object_name": ["readme.txt"],
+        "r_object_type": ["dm_document"],
+        "title": ["Readme"],
+        "owner_name": ["testuser"],
+        "acl_name": ["dm_4500000180000001"],
+        "a_content_type": ["crtext"],
+        "r_page_cnt": ["1"],
+        "r_version_label": ["1.0", "CURRENT"],
+        "r_lock_owner": [""],
+        "r_creation_date": ["2024-03-02T10:00:00"],
+        "r_modify_date": ["2024-03-02T10:00:00"]
+      }
+    },
+    {
+      "id": "0800000180000001",
+      "type": "dm_job",
+      "parentId": null,
+      "attrs": {
+        "object_name": ["dm_DataDictionaryPublisher"],
+        "r_object_type": ["dm_job"],
+        "method_name": ["dm_DataDictionaryPublisher"],
+        "method_id": ["1000000180000001"],
+        "is_inactive": ["F"],
+        "run_now": ["F"],
+        "a_last_completion": ["2026-08-01T02:00:00"],
+        "a_next_invocation": ["2026-08-12T02:00:00"],
+        "run_interval": ["1 day"],
+        "a_last_return": ["0"],
+        "a_current_status": ["Completed successfully"],
+        "owner_name": ["dmadmin"]
+      }
+    },
+    {
+      "id": "0800000180000002",
+      "type": "dm_job",
+      "parentId": null,
+      "attrs": {
+        "object_name": ["dm_ContentWarning"],
+        "r_object_type": ["dm_job"],
+        "method_name": ["dm_ContentWarning"],
+        "method_id": ["1000000180000002"],
+        "is_inactive": ["T"],
+        "run_now": ["F"],
+        "a_last_completion": ["2026-07-01T00:00:00"],
+        "a_next_invocation": [""],
+        "run_interval": ["1 week"],
+        "a_last_return": ["1"],
+        "a_current_status": ["Failed: content store warning threshold"],
+        "owner_name": ["dmadmin"]
+      }
+    },
+    {
+      "id": "0900000180000010",
+      "type": "dm_document",
+      "parentId": "0b00000180000004",
+      "content": "Job Report: dm_DataDictionaryPublisher\nStarted: 2026-08-01T02:00:00\nFinished: 2026-08-01T02:00:12\nReturn: 0\n\nPublished 42 type definitions.\nNo errors.\n",
+      "attrs": {
+        "object_name": ["dm_DataDictionaryPublisher_2026-08-01.log"],
+        "r_object_type": ["dm_document"],
+        "title": ["dm_DataDictionaryPublisher"],
+        "subject": ["dm_DataDictionaryPublisher"],
+        "owner_name": ["dmadmin"],
+        "a_content_type": ["crtext"],
+        "r_page_cnt": ["1"],
+        "r_creation_date": ["2026-08-01T02:00:12"],
+        "r_modify_date": ["2026-08-01T02:00:12"]
+      }
+    },
+    {
+      "id": "0900000180000011",
+      "type": "dm_document",
+      "parentId": "0b00000180000004",
+      "content": "Job Report: dm_ContentWarning\nStarted: 2026-07-01T00:00:00\nFinished: 2026-07-01T00:00:04\nReturn: 1\n\nERROR: filestore 'filestore_01' is over 90% capacity.\n",
+      "attrs": {
+        "object_name": ["dm_ContentWarning_2026-07-01.log"],
+        "r_object_type": ["dm_document"],
+        "title": ["dm_ContentWarning"],
+        "subject": ["dm_ContentWarning"],
+        "owner_name": ["dmadmin"],
+        "a_content_type": ["crtext"],
+        "r_page_cnt": ["1"],
+        "r_creation_date": ["2026-07-01T00:00:04"],
+        "r_modify_date": ["2026-07-01T00:00:04"]
+      }
+    },
+    {
+      "id": "1100000180000001",
+      "type": "dm_user",
+      "parentId": null,
+      "attrs": {
+        "user_name": ["dmadmin"],
+        "user_login_name": ["dmadmin"],
+        "user_address": ["dmadmin@mock.local"],
+        "user_state": ["0"],
+        "r_object_type": ["dm_user"]
+      }
+    },
+    {
+      "id": "1100000180000002",
+      "type": "dm_user",
+      "parentId": null,
+      "attrs": {
+        "user_name": ["testuser"],
+        "user_login_name": ["testuser"],
+        "user_address": ["testuser@mock.local"],
+        "user_state": ["0"],
+        "r_object_type": ["dm_user"]
+      }
+    },
+    {
+      "id": "4500000180000001",
+      "type": "dm_acl",
+      "parentId": null,
+      "attrs": {
+        "object_name": ["dm_4500000180000001"],
+        "description": ["Default ACL"],
+        "r_object_type": ["dm_acl"]
+      }
+    }
+  ]
+}
