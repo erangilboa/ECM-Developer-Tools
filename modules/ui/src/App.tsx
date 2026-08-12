@@ -1,12 +1,29 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Editor, { loader } from "@monaco-editor/react";
 import { ActionBar, ContextMenu, objectIdColumn, type ObjectAction } from "./ActionMenu";
 import { api } from "./api";
+import { aclPeekDql, entityLinkForAttribute, iapiTemplates } from "./entityLinks";
+import { grammarSummary } from "./grammarMarkers";
+import { QuickOpen, useQuickOpenShortcut } from "./QuickOpen";
+import { useIdleGrammarCheck } from "./useIdleGrammarCheck";
 import { Browser } from "./Browser";
-import { DocumentViewer } from "./DocumentViewer";
+import { ErrorPanel } from "./ErrorPanel";
+import { ExecutionHistoryDrawer, recordExecution } from "./ExecutionHistoryDrawer";
+import { RestExplorer } from "./RestExplorer";
+import { DqlTextEditor } from "./DqlTextEditor";
+import { ModuleErrorBoundary } from "./ModuleErrorBoundary";
 import { NavGlyph } from "./NavGlyph";
 import { ProductLockup, ProductLogo } from "./ProductLogo";
-import { DQL_FUNCTIONS, DQL_KEYWORDS, registerDql } from "./dqlLanguage";
+import { SessionStrip } from "./SessionStrip";
+import {
+  documentumFeatureChips,
+  hasCap,
+  isDfcProtocol,
+  isMockProtocol,
+  isMutatingDql,
+  isRestProtocol,
+  unavailableReason,
+  xecmFeatureChips,
+} from "./capabilities";
 import type {
   AttributeValue,
   BusinessWorkspace,
@@ -18,33 +35,10 @@ import type {
   ObjectDump,
   Product,
   Protocol,
+  SavedQuery,
   SessionView,
   TypeInfo,
 } from "./types";
-
-function applyWorkbenchTheme(monaco: any) {
-  monaco.editor.defineTheme("workbench", {
-    base: "vs-dark",
-    inherit: true,
-    rules: [],
-    colors: {
-      "editor.background": "#12161f",
-      "editor.foreground": "#e7ebf4",
-      "editorLineNumber.foreground": "#5a6274",
-      "editor.lineHighlightBackground": "#1a2030",
-      "editor.selectionBackground": "#4f8dff55",
-      "editorCursor.foreground": "#9ec0ff",
-      "editorWidget.background": "#171c27",
-      "editorWidget.border": "#2c3446",
-    },
-  });
-  monaco.editor.setTheme("workbench");
-}
-
-loader.init().then((monaco) => {
-  registerDql(monaco);
-  applyWorkbenchTheme(monaco);
-});
 
 type NavGroup = "workspace" | "query" | "ops" | "more";
 type NavItem = {
@@ -52,10 +46,17 @@ type NavItem = {
   label: string;
   icon: string;
   group: NavGroup;
+  /** Capability required to use this module. */
   cap?: string;
+  /** Needs MOCK_DFC or LIVE_DFC. */
+  requiresDfc?: boolean;
+  /** Needs DCTM_REST or OTCS_REST. */
+  requiresRest?: boolean;
   stub?: boolean;
   dump?: boolean;
 };
+
+type ResolvedNavItem = NavItem & { disabled: boolean; reason?: string };
 
 const NAV_GROUPS: { id: NavGroup; label: string }[] = [
   { id: "workspace", label: "Workspace" },
@@ -68,15 +69,16 @@ const DOCUMENTUM_NAV: NavItem[] = [
   { id: "browser", label: "Browse", icon: "folder", group: "workspace", cap: "BROWSE" },
   { id: "dql", label: "DQL", icon: "code", group: "query", cap: "DQL_SELECT" },
   { id: "jobs", label: "Jobs", icon: "clock", group: "ops", cap: "JOB_LIST" },
-  { id: "dump", label: "Dump", icon: "inspect", group: "ops", dump: true },
-  { id: "iapi", label: "IAPI", icon: "terminal", group: "more", cap: "IAPI" },
-  { id: "scriptrunner", label: "ScriptRunner", icon: "code", group: "more", stub: true },
-  { id: "rest-explorer", label: "REST explorer", icon: "search", group: "more", stub: true },
-  { id: "dfs", label: "DFS", icon: "workspace", group: "more", stub: true },
-  { id: "acl", label: "ACLs", icon: "inspect", group: "more", stub: true },
-  { id: "users", label: "Users / groups", icon: "workspace", group: "more", stub: true },
-  { id: "workflows", label: "Workflows", icon: "clock", group: "more", stub: true },
-  { id: "otds-sso", label: "OTDS SSO", icon: "search", group: "more", stub: true },
+  { id: "dump", label: "Dump", icon: "inspect", group: "ops", dump: true, cap: "OBJECT_READ" },
+  { id: "iapi", label: "IAPI", icon: "terminal", group: "more", cap: "IAPI", requiresDfc: true },
+  { id: "scriptrunner", label: "ScriptRunner", icon: "code", group: "more", stub: true, requiresDfc: true, cap: "IAPI" },
+  { id: "rest-explorer", label: "REST explorer", icon: "search", group: "more" },
+  { id: "dfs", label: "DFS", icon: "workspace", group: "more", stub: true, cap: "DFS_INVOKE" },
+  // MVP Phase 3 uses DQL peek queries only, so gate behind DQL_SELECT.
+  { id: "acl", label: "ACLs", icon: "inspect", group: "more", cap: "DQL_SELECT", requiresDfc: true },
+  { id: "users", label: "Users / groups", icon: "workspace", group: "more", cap: "DQL_SELECT", requiresDfc: true },
+  { id: "workflows", label: "Workflows", icon: "clock", group: "more", cap: "DQL_SELECT", requiresDfc: true },
+  { id: "otds-sso", label: "OTDS SSO", icon: "search", group: "more", stub: true, cap: "OTDS_AUTH" },
 ];
 
 const XECM_NAV: NavItem[] = [
@@ -84,15 +86,36 @@ const XECM_NAV: NavItem[] = [
   { id: "workspaces", label: "Workspaces", icon: "workspace", group: "workspace", cap: "BUSINESS_WORKSPACE" },
   { id: "search", label: "Search", icon: "search", group: "query", cap: "CS_SEARCH" },
   { id: "jobs", label: "Jobs", icon: "clock", group: "ops", cap: "JOB_LIST" },
-  { id: "dump", label: "Details", icon: "inspect", group: "ops", dump: true },
-  { id: "cws", label: "CWS", icon: "code", group: "more", stub: true },
-  { id: "ecmlink", label: "ECMLink create", icon: "workspace", group: "more", stub: true },
-  { id: "users", label: "Users / groups", icon: "inspect", group: "more", stub: true },
-  { id: "otds-sso", label: "OTDS SSO", icon: "search", group: "more", stub: true },
+  { id: "dump", label: "Details", icon: "inspect", group: "ops", dump: true, cap: "OBJECT_READ" },
+  { id: "rest-explorer", label: "REST explorer", icon: "search", group: "more" },
+  { id: "cws", label: "CWS", icon: "code", group: "more", stub: true, cap: "CWS_INVOKE" },
+  { id: "ecmlink", label: "ECMLink create", icon: "workspace", group: "more", stub: true, cap: "BUSINESS_WORKSPACE" },
+  { id: "users", label: "Users / groups", icon: "inspect", group: "more", stub: true, cap: "USER_ADMIN" },
+  { id: "otds-sso", label: "OTDS SSO", icon: "search", group: "more", stub: true, cap: "OTDS_AUTH" },
 ];
 
-const DCTM_STUB_IDS = new Set(DOCUMENTUM_NAV.filter((n) => n.stub || n.id === "iapi").map((n) => n.id));
-const XECM_STUB_IDS = new Set(XECM_NAV.filter((n) => n.stub).map((n) => n.id));
+function resolveNavItem(session: SessionView, item: NavItem): ResolvedNavItem {
+  const reasons: string[] = [];
+  if (item.requiresDfc && !isDfcProtocol(session.protocol)) {
+    reasons.push(unavailableReason(item.cap || "IAPI", session.protocol));
+  }
+  if (item.requiresRest && !isRestProtocol(session.protocol)) {
+    reasons.push(`Needs a REST connection (current: ${session.protocol})`);
+  }
+  if (item.cap && !hasCap(session, item.cap)) {
+    reasons.push(unavailableReason(item.cap, session.protocol));
+  }
+  if (item.dump && !hasCap(session, "OBJECT_READ") && !hasCap(session, "BROWSE")) {
+    reasons.push(unavailableReason("OBJECT_READ", session.protocol));
+  }
+  const disabled = reasons.length > 0;
+  return {
+    ...item,
+    disabled,
+    reason: reasons[0],
+    stub: !!item.stub || disabled,
+  };
+}
 
 export function App() {
   const [profiles, setProfiles] = useState<ConnectionProfile[]>([]);
@@ -108,11 +131,43 @@ export function App() {
   const [logOpen, setLogOpen] = useState(false);
   const [returnTo, setReturnTo] = useState("browser");
   const [seen, setSeen] = useState<Record<string, boolean>>({ browser: true });
+  const [quickOpen, setQuickOpen] = useState(false);
+  const [recentDumpIds, setRecentDumpIds] = useState<string[]>([]);
+  const [recentQueries, setRecentQueries] = useState<string[]>([]);
+  const [queryToLoad, setQueryToLoad] = useState<string | null>(null);
+  const [iapiCmd, setIapiCmd] = useState("dump,c,0900000180000001");
+  const [iapiHistory, setIapiHistory] = useState<string[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [lastOperation, setLastOperation] = useState("");
 
   const caps = session?.capabilities ?? [];
-  const has = (c: string) => caps.includes(c);
+  const has = (c: string) => hasCap(session, c);
 
   const trace = (msg: string) => setLog((l) => [...l.slice(-200), `${new Date().toLocaleTimeString()} ${msg}`]);
+
+  const openQuickOpen = useCallback(() => setQuickOpen(true), []);
+  useQuickOpenShortcut(openQuickOpen, !!session);
+
+  const recordRecentDump = (id: string) => {
+    setRecentDumpIds((ids) => [id, ...ids.filter((x) => x !== id)].slice(0, 20));
+  };
+
+  const openIapi = (command: string) => {
+    setIapiCmd(command);
+    setIapiHistory((h) => [command, ...h.filter((x) => x !== command)].slice(0, 40));
+    setSeen((s) => (s.iapi ? s : { ...s, iapi: true }));
+    setModule("iapi");
+    trace(`IAPI ${command}`);
+  };
+
+  const refreshQueryHistory = async () => {
+    try {
+      const entries = await api.queryHistory();
+      setRecentQueries(entries.map((e) => e.text));
+    } catch {
+      // non-fatal
+    }
+  };
 
   const refreshProfiles = async () => {
     const list = await api.profiles();
@@ -138,6 +193,8 @@ export function App() {
       setReturnTo("browser");
       setSeen({ browser: true });
       setModule("browser");
+      setRecentDumpIds([]);
+      void refreshQueryHistory();
       trace(`Connected ${s.profileName} ${s.product} ${s.protocol} ${s.version}`);
     } catch (e) {
       setError(String(e));
@@ -158,6 +215,7 @@ export function App() {
         return [...rest, { id, dump }];
       });
       setActiveDump(id);
+      recordRecentDump(id);
       if (module !== "dump") setReturnTo(module);
       setModule("dump");
       trace(`Dump ${id}`);
@@ -190,6 +248,10 @@ export function App() {
   };
 
   useEffect(() => {
+    if (session) void refreshQueryHistory();
+  }, [session?.id]);
+
+  useEffect(() => {
     setSeen((s) => (s[module] ? s : { ...s, [module]: true }));
   }, [module]);
 
@@ -209,25 +271,19 @@ export function App() {
   }, [viewer, module, returnTo]);
 
   const platformNav = session?.product === "EXTENDED_ECM" ? XECM_NAV : DOCUMENTUM_NAV;
-  const nav = useMemo(() => {
+  const nav = useMemo((): ResolvedNavItem[] => {
     if (!session) return [];
-    return platformNav.filter((item) => {
-      if (item.dump) return true;
-      if (item.stub) return true;
-      if (item.id === "iapi") return true;
-      if (item.cap) return has(item.cap);
-      return true;
-    }).map((item) => ({
-      ...item,
-      stub: item.stub || (item.id === "iapi" && !has("IAPI")),
-    }));
+    return platformNav.map((item) => resolveNavItem(session, item));
   }, [session, caps.join(",")]);
+  const activeNav = nav.find((n) => n.id === module);
   const backLabel = platformNav.find((n) => n.id === returnTo)?.label ?? "Back";
   const dctmProfiles = profiles.filter((p) => p.product === "DOCUMENTUM");
   const xecmProfiles = profiles.filter((p) => p.product === "EXTENDED_ECM");
   const selectedProfile = profiles.find((p) => p.id === profileId);
+  const moduleUnavailable = !!session && !!activeNav?.disabled;
 
   return (
+    <ModuleErrorBoundary name="Workbench">
     <div className="app">
       <div className="topbar">
         <span className="brand">
@@ -256,32 +312,64 @@ export function App() {
         <button className="primary" onClick={() => connect()}>
           Connect
         </button>
+        {session && (
+          <button
+            type="button"
+            onClick={() => {
+              if (session) void api.close(session.id).catch(() => undefined);
+              setSession(null);
+              setDumps([]);
+              setActiveDump(null);
+              setViewer(null);
+              setSeen({ browser: true });
+              setModule("browser");
+              setRecentDumpIds([]);
+              trace("Disconnected");
+            }}
+          >
+            Disconnect
+          </button>
+        )}
         <button onClick={() => setShowProfile(true)}>Profiles…</button>
-        {session && has("BROWSE") && (session.protocol === "MOCK_DFC" || session.protocol === "MOCK_OTCS") && (
+        {session && (
+          <button type="button" onClick={() => setHistoryOpen(true)}>
+            History
+          </button>
+        )}
+        {session && (
+          <button type="button" onClick={openQuickOpen} title="Quick Open (Ctrl+K or Ctrl+P)">
+            Quick Open
+          </button>
+        )}
+        {session && has("BROWSE") && isMockProtocol(session.protocol) && (
           <button onClick={() => session && api.resetMock(session.id).then(() => trace("Mock reset"))}>
             Reset mock
           </button>
         )}
-        <span className="badge">
-          {session ? (
-            <>
-              <ProductLogo product={session.product} size={18} />
-              <strong>{session.product === "EXTENDED_ECM" ? "Extended ECM" : "Documentum"}</strong>
-              <span>
-                {session.protocol} · {session.repository} · {session.version} · {session.userName}
-              </span>
-            </>
-          ) : selectedProfile ? (
-            <>
-              <ProductLogo product={selectedProfile.product} size={18} />
-              Ready: {selectedProfile.product === "EXTENDED_ECM" ? "Extended ECM" : "Documentum"} · {selectedProfile.name}
-            </>
-          ) : (
-            "Select a Documentum or Extended ECM profile"
-          )}
-        </span>
+        {!session && (
+          <span className="badge">
+            {selectedProfile ? (
+              <>
+                <ProductLogo product={selectedProfile.product} size={18} />
+                Ready: {selectedProfile.product === "EXTENDED_ECM" ? "Extended ECM" : "Documentum"} · {selectedProfile.name}
+                <span className="cap-pill">
+                  {isDfcProtocol(selectedProfile.protocol)
+                    ? "DFC"
+                    : isRestProtocol(selectedProfile.protocol)
+                      ? "REST"
+                      : selectedProfile.protocol}
+                </span>
+              </>
+            ) : (
+              "Select a Documentum or Extended ECM profile"
+            )}
+          </span>
+        )}
+        {session && <SessionStrip session={session} />}
       </div>
-      {error && <div className="error-banner">{error}</div>}
+      {error && (
+        <ErrorPanel error={error} session={session} lastOperation={lastOperation} onDismiss={() => setError("")} />
+      )}
       <div className="shell">
         <div className="nav">
           {session && (
@@ -302,13 +390,17 @@ export function App() {
                 {items.map((n) => (
                   <button
                     key={n.id}
-                    className={`${module === n.id ? "active" : ""} ${n.stub ? "stub" : ""}`}
+                    type="button"
+                    className={`${module === n.id ? "active" : ""} ${n.disabled ? "disabled" : ""} ${n.stub && !n.disabled ? "stub" : ""}`}
+                    title={n.disabled ? n.reason : n.stub ? "Coming soon" : undefined}
+                    aria-disabled={n.disabled}
                     onClick={() => goModule(n.id)}
                   >
                     <span className="nav-ico">
                       <NavGlyph name={n.icon} />
                     </span>
                     <span className="nav-label">{n.label}</span>
+                    {n.disabled ? <span className="nav-lock">off</span> : null}
                     {n.dump && dumps.length > 0 ? <span className="nav-count">{dumps.length}</span> : null}
                   </button>
                 ))}
@@ -331,34 +423,32 @@ export function App() {
               <div className="landing">
                 <div className="card dctm-card">
                   <ProductLockup product="DOCUMENTUM" />
-                  <ul className="chips">
-                    <li>Browse</li>
-                    <li>DQL</li>
-                    <li>Dump</li>
-                    <li>Jobs</li>
-                    <li>IAPI</li>
-                  </ul>
+                  <FeatureChipList
+                    chips={documentumFeatureChips(
+                      (dctmProfiles.find((p) => p.id === profileId) || dctmProfiles[0])?.protocol || "MOCK_DFC"
+                    )}
+                  />
                   <div className="card-actions">
                     {dctmProfiles.map((p) => (
                       <button key={p.id} className="primary" onClick={() => connect(p.id)}>
                         {p.name}
+                        <small className="btn-proto">{isDfcProtocol(p.protocol) ? "DFC" : isRestProtocol(p.protocol) ? "REST" : p.protocol}</small>
                       </button>
                     ))}
                   </div>
                 </div>
                 <div className="card xecm-card">
                   <ProductLockup product="EXTENDED_ECM" />
-                  <ul className="chips">
-                    <li>Browse</li>
-                    <li>Search</li>
-                    <li>Workspaces</li>
-                    <li>Categories</li>
-                    <li>Agents</li>
-                  </ul>
+                  <FeatureChipList
+                    chips={xecmFeatureChips(
+                      (xecmProfiles.find((p) => p.id === profileId) || xecmProfiles[0])?.protocol || "MOCK_OTCS"
+                    )}
+                  />
                   <div className="card-actions">
                     {xecmProfiles.map((p) => (
                       <button key={p.id} className="primary" onClick={() => connect(p.id)}>
                         {p.name}
+                        <small className="btn-proto">{isRestProtocol(p.protocol) ? "REST" : isMockProtocol(p.protocol) ? "mock" : p.protocol}</small>
                       </button>
                     ))}
                   </div>
@@ -366,32 +456,53 @@ export function App() {
               </div>
             </div>
           )}
-          {session && seen.browser && (
+          {session && moduleUnavailable && activeNav && (
+            <UnavailablePanel
+              title={activeNav.label}
+              reason={activeNav.reason || unavailableReason(activeNav.cap || activeNav.label, session.protocol)}
+              protocol={session.protocol}
+              capabilities={session.capabilities}
+            />
+          )}
+          {session && (seen.browser || module === "browser") && (
             <div className="workspace" hidden={module !== "browser"}>
               <Browser session={session} onDump={openDump} onView={openView} onError={setError} trace={trace} />
             </div>
           )}
-          {session?.product === "DOCUMENTUM" && seen.dql && (
+          {session?.product === "DOCUMENTUM" && has("DQL_SELECT") && (seen.dql || module === "dql") && (
             <div className="workspace" hidden={module !== "dql"}>
-              <DqlStudio session={session} onDump={openDump} onError={setError} trace={trace} />
+              <ModuleErrorBoundary name="DQL">
+                <DqlStudio
+                  session={session}
+                  onDump={openDump}
+                  onError={setError}
+                  trace={trace}
+                  queryToLoad={queryToLoad}
+                  onQueryLoaded={() => setQueryToLoad(null)}
+                  onHistoryChange={refreshQueryHistory}
+                  onOpenIapi={has("IAPI") ? openIapi : undefined}
+                />
+              </ModuleErrorBoundary>
             </div>
           )}
-          {session && seen.jobs && (
+          {session && has("JOB_LIST") && (seen.jobs || module === "jobs") && (
             <div className="workspace" hidden={module !== "jobs"}>
               <Jobs session={session} onDump={openDump} onView={openView} onError={setError} trace={trace} />
             </div>
           )}
-          {session?.product === "EXTENDED_ECM" && seen.search && (
+          {session?.product === "EXTENDED_ECM" && has("CS_SEARCH") && (seen.search || module === "search") && (
             <div className="workspace" hidden={module !== "search"}>
               <SearchPanel session={session} onDump={openDump} onError={setError} trace={trace} />
             </div>
           )}
-          {session?.product === "EXTENDED_ECM" && seen.workspaces && (
-            <div className="workspace" hidden={module !== "workspaces"}>
-              <Workspaces session={session} onDump={openDump} onError={setError} />
-            </div>
-          )}
-          {session && seen.dump && (
+          {session?.product === "EXTENDED_ECM" &&
+            has("BUSINESS_WORKSPACE") &&
+            (seen.workspaces || module === "workspaces") && (
+              <div className="workspace" hidden={module !== "workspaces"}>
+                <Workspaces session={session} onDump={openDump} onError={setError} />
+              </div>
+            )}
+          {session && (seen.dump || module === "dump") && (
             <div className="workspace" hidden={module !== "dump"}>
               <DumpWorkspace
                 session={session}
@@ -405,18 +516,91 @@ export function App() {
                 onCloseTab={closeDump}
                 backLabel={backLabel}
                 trace={trace}
+                onOpenDump={openDump}
+                onOpenIapi={has("IAPI") ? openIapi : undefined}
+                onLoadQuery={(q) => {
+                  setQueryToLoad(q);
+                  goModule("dql");
+                }}
               />
             </div>
           )}
-          {session?.product === "DOCUMENTUM" && module === "iapi" && has("IAPI") && (
-            <IapiPanel session={session} onError={setError} trace={trace} />
+          {session && (seen["rest-explorer"] || module === "rest-explorer") && (
+            <div className="workspace" hidden={module !== "rest-explorer"}>
+              <ModuleErrorBoundary name="REST Explorer">
+                <RestExplorer session={session} onError={setError} trace={trace} />
+              </ModuleErrorBoundary>
+            </div>
           )}
-          {session && module !== "browser" && module !== "dump" && (
-            ((session.product === "DOCUMENTUM" && DCTM_STUB_IDS.has(module) && !(module === "iapi" && has("IAPI"))) ||
-              (session.product === "EXTENDED_ECM" && XECM_STUB_IDS.has(module))) && (
-              <StubPanel module={module} />
-            )
+          {session?.product === "DOCUMENTUM" && (seen.iapi || module === "iapi") && has("IAPI") && !moduleUnavailable && (
+            <div className="workspace" hidden={module !== "iapi"}>
+              <ModuleErrorBoundary name="IAPI">
+                <IapiPanel
+                  session={session}
+                  cmd={iapiCmd}
+                  setCmd={setIapiCmd}
+                  history={iapiHistory}
+                  onError={setError}
+                  trace={trace}
+                  onOpenDump={openDump}
+                />
+              </ModuleErrorBoundary>
+            </div>
           )}
+          {session?.product === "DOCUMENTUM" && has("DQL_SELECT") && (seen.acl || module === "acl") && (
+            <div className="workspace" hidden={module !== "acl"}>
+              <ModuleErrorBoundary name="ACLs">
+                <AclPanel
+                  session={session}
+                  onDump={openDump}
+                  onError={setError}
+                  trace={trace}
+                  canIapi={has("IAPI")}
+                  onOpenIapi={has("IAPI") ? openIapi : undefined}
+                />
+              </ModuleErrorBoundary>
+            </div>
+          )}
+          {session?.product === "DOCUMENTUM" && has("DQL_SELECT") && (seen.users || module === "users") && (
+            <div className="workspace" hidden={module !== "users"}>
+              <ModuleErrorBoundary name="Users / Groups">
+                <UsersGroupsPanel
+                  session={session}
+                  onDump={openDump}
+                  onError={setError}
+                  trace={trace}
+                  canIapi={has("IAPI")}
+                  onOpenIapi={has("IAPI") ? openIapi : undefined}
+                />
+              </ModuleErrorBoundary>
+            </div>
+          )}
+          {session?.product === "DOCUMENTUM" && has("DQL_SELECT") && (seen.workflows || module === "workflows") && (
+            <div className="workspace" hidden={module !== "workflows"}>
+              <ModuleErrorBoundary name="Workflows">
+                <WorkflowsPanel
+                  session={session}
+                  onDump={openDump}
+                  onError={setError}
+                  trace={trace}
+                  canIapi={has("IAPI")}
+                  onOpenIapi={has("IAPI") ? openIapi : undefined}
+                />
+              </ModuleErrorBoundary>
+            </div>
+          )}
+          {session &&
+            !moduleUnavailable &&
+            activeNav?.stub &&
+            !activeNav.disabled &&
+            module !== "browser" &&
+            module !== "dump" &&
+            module !== "dql" &&
+            module !== "jobs" &&
+            module !== "search" &&
+            module !== "workspaces" &&
+            module !== "rest-explorer" &&
+            !(module === "iapi" && has("IAPI")) && <StubPanel module={module} />}
         </div>
       </div>
       <div className="log">
@@ -443,7 +627,45 @@ export function App() {
           }}
         />
       )}
+      {session && (
+        <ExecutionHistoryDrawer
+          open={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+          product={session.product}
+          onRerun={(entry) => {
+            if (entry.kind === "DQL") {
+              setQueryToLoad(entry.requestText);
+              goModule("dql");
+            } else if (entry.kind === "IAPI") {
+              openIapi(entry.requestText);
+            } else if (entry.kind === "REST") {
+              goModule("rest-explorer");
+            } else if (entry.kind === "SEARCH") {
+              goModule("search");
+            }
+            setHistoryOpen(false);
+          }}
+        />
+      )}
+      {session && (
+        <QuickOpen
+          open={quickOpen}
+          onClose={() => setQuickOpen(false)}
+          session={session}
+          recentDumpIds={recentDumpIds}
+          recentQueries={recentQueries}
+          modules={nav.filter((n) => !n.disabled).map((n) => ({ id: n.id, label: n.label, disabled: n.disabled }))}
+          onOpenDump={openDump}
+          onGoModule={goModule}
+          onLoadQuery={(text) => {
+            setQueryToLoad(text);
+            goModule(session.product === "EXTENDED_ECM" ? "search" : "dql");
+          }}
+          onOpenIapi={has("IAPI") ? openIapi : undefined}
+        />
+      )}
     </div>
+    </ModuleErrorBoundary>
   );
 }
 
@@ -452,94 +674,109 @@ function DqlStudio({
   onDump,
   onError,
   trace,
+  queryToLoad,
+  onQueryLoaded,
+  onHistoryChange,
+  onOpenIapi,
 }: {
   session: SessionView;
   onDump: (id: string) => void;
   onError: (s: string) => void;
   trace: (s: string) => void;
+  queryToLoad?: string | null;
+  onQueryLoaded?: () => void;
+  onHistoryChange?: () => void;
+  onOpenIapi?: (command: string) => void;
 }) {
   const [dql, setDql] = useState("SELECT r_object_id, object_name, r_object_type FROM dm_document");
   const [result, setResult] = useState<GridResult | null>(null);
   const [history, setHistory] = useState<string[]>([]);
-  const [types, setTypes] = useState<TypeInfo[]>([]);
+  const [saved, setSaved] = useState<SavedQuery[]>([]);
   const [filter, setFilter] = useState("");
   const [queryName, setQueryName] = useState("");
   const [naming, setNaming] = useState(false);
+  const { issues: grammarIssues, idle: grammarIdle, checkNow: checkGrammarNow } = useIdleGrammarCheck("dql", dql);
+  const grammar = grammarSummary(grammarIssues);
+  const canExecute = hasCap(session, "DQL_EXECUTE");
+  const mutating = isMutatingDql(dql);
+  const runBlocked = mutating && !canExecute;
+  const canIapi = hasCap(session, "IAPI");
 
   useEffect(() => {
-    api.types(session.id)
-      .then((t) => setTypes(t.types || []))
-      .catch(() => undefined);
-  }, [session.id]);
+    api.queries().then(setSaved).catch(() => setSaved([]));
+    api.queryHistory(session.product).then((entries) => setHistory(entries.map((e) => e.text))).catch(() => setHistory([]));
+  }, [session.id, session.product]);
+
+  useEffect(() => {
+    if (queryToLoad) {
+      setDql(queryToLoad);
+      onQueryLoaded?.();
+    }
+  }, [queryToLoad, onQueryLoaded]);
 
   const run = async () => {
+    if (runBlocked) {
+      onError(unavailableReason("DQL_EXECUTE", session.protocol));
+      return;
+    }
+    await checkGrammarNow();
     try {
       const res = await api.dql(session.id, dql);
       setResult(res);
       setHistory((h) => [dql, ...h.filter((x) => x !== dql)].slice(0, 40));
+      void api.appendQueryHistory(dql, session.product).then(() => onHistoryChange?.());
       trace(`DQL ${res.rowCount} rows ${res.elapsedMs}ms`);
+      void recordExecution({
+        kind: "DQL",
+        product: session.product,
+        summary: `${res.rowCount} rows`,
+        requestText: dql,
+        responseSummary: `${res.rowCount} rows · ${res.elapsedMs}ms`,
+        success: true,
+        elapsedMs: res.elapsedMs,
+      });
     } catch (e) {
       onError(String(e));
+      void recordExecution({
+        kind: "DQL",
+        product: session.product,
+        summary: "DQL failed",
+        requestText: dql,
+        responseSummary: String(e),
+        success: false,
+      });
     }
   };
 
-  const onMount = useCallback(
-    (editor: any, monaco: any) => {
-      monaco.languages.registerCompletionItemProvider("dql", {
-        triggerCharacters: [" ", ".", ","],
-        provideCompletionItems: (model: any, position: any) => {
-          const word = model.getWordUntilPosition(position);
-          const range = {
-            startLineNumber: position.lineNumber,
-            endLineNumber: position.lineNumber,
-            startColumn: word.startColumn,
-            endColumn: word.endColumn,
-          };
-          const text = model.getValue().slice(0, model.getOffsetAt(position)).toUpperCase();
-          const suggestions: any[] = [];
-          const kw = [...DQL_KEYWORDS, ...DQL_FUNCTIONS].map((k) => ({
-            label: k,
-            kind: monaco.languages.CompletionItemKind.Keyword,
-            insertText: k,
-            range,
-          }));
-          if (text.includes("FROM") && !text.trim().endsWith("FROM")) {
-            types.forEach((t) =>
-              suggestions.push({
-                label: String(t.name),
-                kind: monaco.languages.CompletionItemKind.Class,
-                insertText: String(t.name),
-                range,
-              })
-            );
-          }
-          const fromMatch = /FROM\s+([A-Z0-9_]+)/i.exec(text);
-          if (fromMatch) {
-            const t = types.find((x) => x.name.toLowerCase() === fromMatch[1].toLowerCase());
-            t?.attributes.forEach((a) =>
-              suggestions.push({
-                label: String(a),
-                kind: monaco.languages.CompletionItemKind.Field,
-                insertText: String(a),
-                range,
-              })
-            );
-          }
-          return { suggestions: suggestions.length ? suggestions : kw };
-        },
-      });
-    },
-    [types]
-  );
-
   const idIndex = result?.columns.findIndex((c) => c.toLowerCase() === "r_object_id") ?? -1;
+  const productSaved = saved.filter((q) => q.product === session.product);
 
   return (
     <div className="panel fill">
       <div className="page-toolbar">
-        <button className="primary" onClick={run}>
+        <button
+          className="primary"
+          onClick={run}
+          disabled={runBlocked}
+          title={runBlocked ? unavailableReason("DQL_EXECUTE", session.protocol) : "Ctrl+Enter"}
+        >
           Run
         </button>
+        <span
+          className={`grammar-status ${grammarIdle ? grammar.kind : "pending"}`}
+          title={grammarIdle ? grammarIssues.map((i) => i.message).join("\n") : "Grammar check runs after you pause typing"}
+        >
+          {grammarIdle ? grammar.text : "…"}
+        </span>
+        {!canExecute && (
+          <span className="cap-note" title={unavailableReason("DQL_EXECUTE", session.protocol)}>
+            SELECT only — EXECUTE needs DFC
+          </span>
+        )}
+        {canExecute && isDfcProtocol(session.protocol) && (
+          <span className="cap-note ok">DFC — SELECT + EXECUTE</span>
+        )}
+        {isRestProtocol(session.protocol) && <span className="cap-note">REST — SELECT only</span>}
         {naming ? (
           <>
             <input
@@ -548,10 +785,12 @@ function DqlStudio({
               onChange={(e) => setQueryName(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && queryName.trim()) {
-                  api.saveQuery(queryName.trim(), dql, session.product);
-                  setNaming(false);
-                  setQueryName("");
-                  trace(`Saved query ${queryName.trim()}`);
+                  api.saveQuery(queryName.trim(), dql, session.product).then((q) => {
+                    setSaved((s) => [...s.filter((x) => x.id !== q.id), q]);
+                    setNaming(false);
+                    setQueryName("");
+                    trace(`Saved query ${queryName.trim()}`);
+                  });
                 }
                 if (e.key === "Escape") setNaming(false);
               }}
@@ -561,10 +800,12 @@ function DqlStudio({
               type="button"
               onClick={() => {
                 if (!queryName.trim()) return;
-                api.saveQuery(queryName.trim(), dql, session.product);
-                setNaming(false);
-                setQueryName("");
-                trace(`Saved query ${queryName.trim()}`);
+                api.saveQuery(queryName.trim(), dql, session.product).then((q) => {
+                  setSaved((s) => [...s.filter((x) => x.id !== q.id), q]);
+                  setNaming(false);
+                  setQueryName("");
+                  trace(`Saved query ${queryName.trim()}`);
+                });
               }}
             >
               Save query
@@ -578,6 +819,23 @@ function DqlStudio({
             Save query
           </button>
         )}
+        <select
+          onChange={(e) => {
+            const id = e.target.value;
+            if (!id) return;
+            const q = productSaved.find((x) => x.id === id);
+            if (q) setDql(q.text);
+            e.target.value = "";
+          }}
+          defaultValue=""
+        >
+          <option value="">Library…</option>
+          {productSaved.map((q) => (
+            <option key={q.id} value={q.id}>
+              {q.name}
+            </option>
+          ))}
+        </select>
         <select onChange={(e) => e.target.value && setDql(e.target.value)} defaultValue="">
           <option value="">History…</option>
           {history.map((h) => (
@@ -594,36 +852,294 @@ function DqlStudio({
         />
       </div>
       <div className="editor">
-        <Editor
-          height="168px"
-          language="dql"
-          theme="workbench"
-          value={dql}
-          onChange={(v) => setDql(v ?? "")}
-          onMount={(editor, monaco) => {
-            applyWorkbenchTheme(monaco);
-            onMount(editor, monaco);
-          }}
-          options={{
-            minimap: { enabled: false },
-            fontSize: 13,
-            fontFamily: "Cascadia Mono, Consolas, ui-monospace, monospace",
-            padding: { top: 8, bottom: 8 },
-            fixedOverflowWidgets: true,
-            suggestFontSize: 13,
-            suggestLineHeight: 22,
-          }}
-        />
+        <DqlTextEditor value={dql} onChange={setDql} onRun={run} />
       </div>
-      {result && (
+      {result ? (
         <ResultGrid
           result={result}
           filter={filter}
+          onDump={onDump}
+          canIapi={canIapi}
+          onOpenIapi={onOpenIapi}
+          onCell={(ri, ci, value) => {
+            if (ci === idIndex || result.columns[ci]?.toLowerCase().includes("object_id")) onDump(value);
+          }}
+        />
+      ) : (
+        <div className="empty-results muted">Run a query to see results here.</div>
+      )}
+    </div>
+  );
+}
+
+function AclPanel({
+  session,
+  onDump,
+  onError,
+  trace,
+  canIapi,
+  onOpenIapi,
+}: {
+  session: SessionView;
+  onDump: (id: string) => void;
+  onError: (s: string) => void;
+  trace: (s: string) => void;
+  canIapi?: boolean;
+  onOpenIapi?: (command: string) => void;
+}) {
+  const [aclName, setAclName] = useState("");
+  const [domain, setDomain] = useState("docbase");
+  const [filter, setFilter] = useState("");
+  const [result, setResult] = useState<GridResult | null>(null);
+
+  const run = async () => {
+    const name = aclName.trim();
+    const dom = domain.trim() || "docbase";
+    if (!name) return;
+    const q = aclPeekDql(name, dom);
+    try {
+      const res = await api.dql(session.id, q);
+      setResult(res);
+      trace(`ACL peek ${res.rowCount} rows ${res.elapsedMs}ms`);
+      void recordExecution({
+        kind: "DQL",
+        product: session.product,
+        summary: `${res.rowCount} rows`,
+        requestText: q,
+        responseSummary: `${res.rowCount} rows · ${res.elapsedMs}ms`,
+        success: true,
+        elapsedMs: res.elapsedMs,
+      });
+      void api.appendQueryHistory(q, session.product).catch(() => undefined);
+    } catch (e) {
+      onError(String(e));
+      void recordExecution({
+        kind: "DQL",
+        product: session.product,
+        summary: "ACL peek failed",
+        requestText: q,
+        responseSummary: String(e),
+        success: false,
+      });
+    }
+  };
+
+  const idIndex = result?.columns.findIndex((c) => c.toLowerCase() === "r_object_id") ?? -1;
+
+  return (
+    <div className="panel fill">
+      <div className="page-toolbar">
+        <button type="button" className="primary" onClick={run} disabled={!aclName.trim()}>
+          Peek
+        </button>
+        <input
+          style={{ flex: 1, minWidth: 200 }}
+          placeholder="ACL name"
+          value={aclName}
+          onChange={(e) => setAclName(e.target.value)}
+        />
+        <input style={{ width: 170 }} placeholder="Domain" value={domain} onChange={(e) => setDomain(e.target.value)} />
+        <input
+          style={{ flex: 1, minWidth: 180 }}
+          placeholder="Filter results"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        />
+      </div>
+      {result ? (
+        <ResultGrid
+          result={result}
+          filter={filter}
+          canIapi={canIapi}
+          onOpenIapi={onOpenIapi}
           onDump={onDump}
           onCell={(ri, ci, value) => {
             if (ci === idIndex || result.columns[ci]?.toLowerCase().includes("object_id")) onDump(value);
           }}
         />
+      ) : (
+        <div className="empty-results muted">Enter an ACL name and click Peek.</div>
+      )}
+    </div>
+  );
+}
+
+function UsersGroupsPanel({
+  session,
+  onDump,
+  onError,
+  trace,
+  canIapi,
+  onOpenIapi,
+}: {
+  session: SessionView;
+  onDump: (id: string) => void;
+  onError: (s: string) => void;
+  trace: (s: string) => void;
+  canIapi?: boolean;
+  onOpenIapi?: (command: string) => void;
+}) {
+  const [kind, setKind] = useState<"user" | "group">("user");
+  const [name, setName] = useState("");
+  const [filter, setFilter] = useState("");
+  const [result, setResult] = useState<GridResult | null>(null);
+
+  const run = async () => {
+    const n = name.trim();
+    if (!n) return;
+    const dql =
+      kind === "user"
+        ? `SELECT r_object_id, object_name FROM dm_user WHERE object_name = '${n.replace(/'/g, "''")}'`
+        : `SELECT r_object_id, object_name FROM dm_group WHERE object_name = '${n.replace(/'/g, "''")}'`;
+    try {
+      const res = await api.dql(session.id, dql);
+      setResult(res);
+      trace(`${kind} peek ${res.rowCount} rows ${res.elapsedMs}ms`);
+      void recordExecution({
+        kind: "DQL",
+        product: session.product,
+        summary: `${res.rowCount} rows`,
+        requestText: dql,
+        responseSummary: `${res.rowCount} rows · ${res.elapsedMs}ms`,
+        success: true,
+        elapsedMs: res.elapsedMs,
+      });
+      void api.appendQueryHistory(dql, session.product).catch(() => undefined);
+    } catch (e) {
+      onError(String(e));
+      void recordExecution({
+        kind: "DQL",
+        product: session.product,
+        summary: `${kind} peek failed`,
+        requestText: dql,
+        responseSummary: String(e),
+        success: false,
+      });
+    }
+  };
+
+  const idIndex = result?.columns.findIndex((c) => c.toLowerCase() === "r_object_id") ?? -1;
+
+  return (
+    <div className="panel fill">
+      <div className="page-toolbar">
+        <select value={kind} onChange={(e) => setKind(e.target.value as "user" | "group")} style={{ minWidth: 170 }}>
+          <option value="user">User</option>
+          <option value="group">Group</option>
+        </select>
+        <button type="button" className="primary" onClick={run} disabled={!name.trim()}>
+          Peek
+        </button>
+        <input
+          style={{ flex: 1, minWidth: 200 }}
+          placeholder={kind === "user" ? "User name" : "Group name"}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <input
+          style={{ flex: 1, minWidth: 180 }}
+          placeholder="Filter results"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        />
+      </div>
+      {result ? (
+        <ResultGrid
+          result={result}
+          filter={filter}
+          canIapi={canIapi}
+          onOpenIapi={onOpenIapi}
+          onDump={onDump}
+          onCell={(ri, ci, value) => {
+            if (ci === idIndex || result.columns[ci]?.toLowerCase().includes("object_id")) onDump(value);
+          }}
+        />
+      ) : (
+        <div className="empty-results muted">Enter a {kind} name and click Peek.</div>
+      )}
+    </div>
+  );
+}
+
+function WorkflowsPanel({
+  session,
+  onDump,
+  onError,
+  trace,
+  canIapi,
+  onOpenIapi,
+}: {
+  session: SessionView;
+  onDump: (id: string) => void;
+  onError: (s: string) => void;
+  trace: (s: string) => void;
+  canIapi?: boolean;
+  onOpenIapi?: (command: string) => void;
+}) {
+  const [name, setName] = useState("");
+  const [filter, setFilter] = useState("");
+  const [result, setResult] = useState<GridResult | null>(null);
+
+  const run = async () => {
+    const n = name.trim();
+    if (!n) return;
+    const dql = `SELECT r_object_id, object_name FROM dm_activity WHERE object_name = '${n.replace(/'/g, "''")}'`;
+    try {
+      const res = await api.dql(session.id, dql);
+      setResult(res);
+      trace(`workflow peek ${res.rowCount} rows ${res.elapsedMs}ms`);
+      void recordExecution({
+        kind: "DQL",
+        product: session.product,
+        summary: `${res.rowCount} rows`,
+        requestText: dql,
+        responseSummary: `${res.rowCount} rows · ${res.elapsedMs}ms`,
+        success: true,
+        elapsedMs: res.elapsedMs,
+      });
+      void api.appendQueryHistory(dql, session.product).catch(() => undefined);
+    } catch (e) {
+      onError(String(e));
+      void recordExecution({
+        kind: "DQL",
+        product: session.product,
+        summary: "workflow peek failed",
+        requestText: dql,
+        responseSummary: String(e),
+        success: false,
+      });
+    }
+  };
+
+  const idIndex = result?.columns.findIndex((c) => c.toLowerCase() === "r_object_id") ?? -1;
+
+  return (
+    <div className="panel fill">
+      <div className="page-toolbar">
+        <button type="button" className="primary" onClick={run} disabled={!name.trim()}>
+          Peek
+        </button>
+        <input style={{ flex: 1, minWidth: 200 }} placeholder="Workflow name" value={name} onChange={(e) => setName(e.target.value)} />
+        <input
+          style={{ flex: 1, minWidth: 180 }}
+          placeholder="Filter results"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        />
+      </div>
+      {result ? (
+        <ResultGrid
+          result={result}
+          filter={filter}
+          canIapi={canIapi}
+          onOpenIapi={onOpenIapi}
+          onDump={onDump}
+          onCell={(ri, ci, value) => {
+            if (ci === idIndex || result.columns[ci]?.toLowerCase().includes("object_id")) onDump(value);
+          }}
+        />
+      ) : (
+        <div className="empty-results muted">Enter a workflow name and click Peek.</div>
       )}
     </div>
   );
@@ -642,11 +1158,15 @@ function ResultGrid({
   filter,
   onCell,
   onDump,
+  canIapi,
+  onOpenIapi,
 }: {
   result: GridResult;
   filter: string;
   onCell: (ri: number, ci: number, value: string) => void;
   onDump?: (id: string) => void;
+  canIapi?: boolean;
+  onOpenIapi?: (command: string) => void;
 }) {
   const [wrap, setWrap] = useState(false);
   const [sel, setSel] = useState<{ ri: number; ci: number } | null>(null);
@@ -671,6 +1191,13 @@ function ResultGrid({
       disabled: !selectedId,
       run: () => selectedId && void navigator.clipboard.writeText(selectedId),
     },
+    ...(canIapi && selectedId && onOpenIapi
+      ? iapiTemplates(selectedId).map((t) => ({
+          id: `iapi-${t.label}`,
+          label: `IAPI ${t.label}`,
+          run: () => onOpenIapi(t.command),
+        }))
+      : []),
     {
       id: "copy-cell",
       label: "Copy cell",
@@ -760,6 +1287,13 @@ function ResultGrid({
               label: "Copy cell",
               run: () => void navigator.clipboard.writeText(rows[menu.ri]?.[menu.ci] || ""),
             },
+            ...(canIapi && onOpenIapi && idIndex >= 0 && rows[menu.ri]?.[idIndex]
+              ? iapiTemplates(rows[menu.ri][idIndex]).map((t) => ({
+                  id: `iapi-${t.label}`,
+                  label: `IAPI ${t.label}`,
+                  run: () => onOpenIapi(t.command),
+                }))
+              : []),
           ]}
           onClose={() => setMenu(null)}
         />
@@ -813,6 +1347,7 @@ function Jobs({
     load();
   }, [session.id]);
   const xecm = session.product === "EXTENDED_ECM";
+  const canRunJobs = hasCap(session, "JOB_RUN");
   return (
     <div className="panel fill">
       <div className="page-toolbar">
@@ -824,6 +1359,11 @@ function Jobs({
         >
           Refresh
         </button>
+        {!canRunJobs && (
+          <span className="cap-note" title={unavailableReason("JOB_RUN", session.protocol)}>
+            Run now disabled on this connection
+          </span>
+        )}
         {xecm && (
           <span className="muted">Content Server scheduled agents (Notification, index, ECMLink sync, …)</span>
         )}
@@ -858,8 +1398,11 @@ function Jobs({
                   <td>{j.nextInvocationDate}</td>
                   <td>
                     <button
+                      disabled={!canRunJobs}
+                      title={canRunJobs ? undefined : unavailableReason("JOB_RUN", session.protocol)}
                       onClick={async (e) => {
                         e.stopPropagation();
+                        if (!canRunJobs) return;
                         if (!confirm("Run job now?")) return;
                         try {
                           await api.runJob(session.id, j.id);
@@ -959,16 +1502,37 @@ function SearchPanel({
             try {
               const res = await api.search(session.id, q);
               setResult(res);
-              trace(`Search ${res.rowCount}`);
+              trace(`Search ${res.rowCount} · ${res.elapsedMs}ms`);
+              void recordExecution({
+                kind: "SEARCH",
+                product: session.product,
+                summary: `${res.rowCount} rows`,
+                requestText: q,
+                responseSummary: `${res.rowCount} rows · ${res.elapsedMs}ms`,
+                success: true,
+                elapsedMs: res.elapsedMs,
+              });
             } catch (e) {
               onError(String(e));
+              void recordExecution({
+                kind: "SEARCH",
+                product: session.product,
+                summary: "Search failed",
+                requestText: q,
+                responseSummary: String(e),
+                success: false,
+              });
             }
           }}
         >
           Search
         </button>
       </div>
-      {result && <ResultGrid result={result} filter="" onDump={onDump} onCell={(_r, _c, v) => onDump(v)} />}
+      {result ? (
+        <ResultGrid result={result} filter="" onDump={onDump} onCell={(_r, _c, v) => onDump(v)} />
+      ) : (
+        <div className="empty-results muted">Enter a name or node id and click Search.</div>
+      )}
     </div>
   );
 }
@@ -1062,13 +1626,23 @@ function AttrSection({
   hint,
   attrs,
   system,
+  editable = true,
+  product,
   onChange,
+  onOpenDump,
+  onOpenIapi,
+  onLoadQuery,
 }: {
   title: string;
   hint: string;
   attrs: AttributeValue[];
   system?: boolean;
+  editable?: boolean;
+  product?: Product;
   onChange: (name: string, value: string) => void;
+  onOpenDump?: (id: string) => void;
+  onOpenIapi?: (command: string) => void;
+  onLoadQuery?: (text: string) => void;
 }) {
   return (
     <div className={`dump-section${system ? " system" : ""}`}>
@@ -1097,10 +1671,14 @@ function AttrSection({
                     {a.readOnly && <span className="pill inactive">ro</span>}
                   </td>
                   <td>
-                    <input
-                      disabled={a.readOnly}
-                      value={a.values.join(", ")}
-                      onChange={(e) => onChange(a.name, e.target.value)}
+                    <AttrValueCell
+                      attr={a}
+                      product={product}
+                      editable={editable && !a.readOnly}
+                      onChange={onChange}
+                      onOpenDump={onOpenDump}
+                      onOpenIapi={onOpenIapi}
+                      onLoadQuery={onLoadQuery}
                     />
                   </td>
                 </tr>
@@ -1110,6 +1688,69 @@ function AttrSection({
         )}
       </div>
     </div>
+  );
+}
+
+function AttrValueCell({
+  attr,
+  product,
+  editable,
+  onChange,
+  onOpenDump,
+  onOpenIapi,
+  onLoadQuery,
+}: {
+  attr: AttributeValue;
+  product?: Product;
+  editable: boolean;
+  onChange: (name: string, value: string) => void;
+  onOpenDump?: (id: string) => void;
+  onOpenIapi?: (command: string) => void;
+  onLoadQuery?: (text: string) => void;
+}) {
+  const raw = attr.values.join(", ");
+  const link = entityLinkForAttribute(attr.name, raw, product);
+
+  if (link.kind === "object" && onOpenDump) {
+    return (
+      <span className="entity-links">
+        <button type="button" className="entity-link" onClick={() => onOpenDump(link.value)} title="Open dump">
+          {raw}
+        </button>
+        {onOpenIapi &&
+          iapiTemplates(link.value)
+            .slice(0, 2)
+            .map((t) => (
+              <button key={t.label} type="button" className="entity-link subtle" onClick={() => onOpenIapi(t.command)}>
+                {t.label}
+              </button>
+            ))}
+      </span>
+    );
+  }
+
+  if (link.kind === "acl" && onLoadQuery && product === "DOCUMENTUM") {
+    return (
+      <span className="entity-links">
+        <code>{raw}</code>
+        <button
+          type="button"
+          className="entity-link subtle"
+          onClick={() => onLoadQuery(aclPeekDql(link.value))}
+          title="Peek ACL via DQL"
+        >
+          DQL peek
+        </button>
+      </span>
+    );
+  }
+
+  if (link.kind === "type") {
+    return <code className="entity-type">{raw}</code>;
+  }
+
+  return (
+    <input disabled={!editable} value={raw} onChange={(e) => onChange(attr.name, e.target.value)} />
   );
 }
 
@@ -1189,6 +1830,9 @@ function DumpWorkspace({
   onCloseTab,
   backLabel,
   trace,
+  onOpenDump,
+  onOpenIapi,
+  onLoadQuery,
 }: {
   session: SessionView | null;
   dumps: DumpTab[];
@@ -1201,6 +1845,9 @@ function DumpWorkspace({
   onCloseTab: (id: string) => void;
   backLabel: string;
   trace: (s: string) => void;
+  onOpenDump?: (id: string) => void;
+  onOpenIapi?: (command: string) => void;
+  onLoadQuery?: (text: string) => void;
 }) {
   const tab = dumps.find((d) => d.id === active) ?? dumps[dumps.length - 1];
   if (!tab) {
@@ -1219,8 +1866,11 @@ function DumpWorkspace({
   }
   const dump = tab.dump;
   const xecm = session?.product === "EXTENDED_ECM";
+  const canSave = hasCap(session, "OBJECT_UPDATE");
+  const canContent = hasCap(session, "CONTENT_GET");
   const { custom, system } = partitionAttributes(dump, session?.product);
   const onChangeAttr = (name: string, value: string) => {
+    if (!canSave) return;
     const next = {
       ...dump,
       attributes: dump.attributes.map((x) =>
@@ -1266,7 +1916,9 @@ function DumpWorkspace({
           <div className="object-hero-name">{dump.objectName || dump.id}</div>
           <div className="object-hero-meta">
             <span className="pill scheduled">{dump.typeName}</span>
-            <code>{dump.id}</code>
+            <button type="button" className="entity-link" onClick={() => onOpenDump?.(dump.id)} title="Refresh dump">
+              <code>{dump.id}</code>
+            </button>
           </div>
         </div>
       </div>
@@ -1275,14 +1927,24 @@ function DumpWorkspace({
           title="Custom"
           hint={xecm ? "Node properties and business fields" : "Type attributes (object_name, title, …)"}
           attrs={custom}
+          editable={canSave}
+          product={session?.product}
           onChange={onChangeAttr}
+          onOpenDump={onOpenDump}
+          onOpenIapi={onOpenIapi}
+          onLoadQuery={onLoadQuery}
         />
         <AttrSection
           title="System"
           hint={xecm ? "Core CS node metadata" : "Repository internals (r_, i_, a_)"}
           attrs={system}
           system
+          editable={canSave}
+          product={session?.product}
           onChange={onChangeAttr}
+          onOpenDump={onOpenDump}
+          onOpenIapi={onOpenIapi}
+          onLoadQuery={onLoadQuery}
         />
       </div>
       {xecm && dump.categories?.length > 0 && (
@@ -1321,8 +1983,14 @@ function DumpWorkspace({
       <div className="row">
         <button
           className="primary"
+          disabled={!canSave}
+          title={
+            !canSave
+              ? unavailableReason("OBJECT_UPDATE", session?.protocol)
+              : undefined
+          }
           onClick={async () => {
-            if (!session) return;
+            if (!session || !canSave) return;
             if (dump.sapLinked && !confirm("This looks SAP-linked. Continue anyway?")) return;
             try {
               await api.saveDump(session.id, dump);
@@ -1334,7 +2002,7 @@ function DumpWorkspace({
         >
           Save
         </button>
-        {session && dumpHasContent(dump) && (
+        {session && canContent && dumpHasContent(dump) && (
           <>
             <button className="primary" onClick={() => onView(dump.id, dump.objectName)}>
               View content
@@ -1344,6 +2012,18 @@ function DumpWorkspace({
             </a>
           </>
         )}
+        {!canSave && (
+          <span className="cap-note">{unavailableReason("OBJECT_UPDATE", session?.protocol)}</span>
+        )}
+        {onOpenIapi && (
+          <>
+            {iapiTemplates(dump.id).map((t) => (
+              <button key={t.label} type="button" onClick={() => onOpenIapi(t.command)}>
+                IAPI {t.label}
+              </button>
+            ))}
+          </>
+        )}
       </div>
     </div>
   );
@@ -1351,36 +2031,163 @@ function DumpWorkspace({
 
 function IapiPanel({
   session,
+  cmd,
+  setCmd,
+  history,
   onError,
   trace,
+  onOpenDump,
 }: {
   session: SessionView;
+  cmd: string;
+  setCmd: (s: string) => void;
+  history: string[];
   onError: (s: string) => void;
   trace: (s: string) => void;
+  onOpenDump?: (id: string) => void;
 }) {
-  const [cmd, setCmd] = useState("dump,c,0900000180000001");
   const [out, setOut] = useState("");
+  const [currentId, setCurrentId] = useState("");
+  const { issues: grammarIssues, idle: grammarIdle, checkNow: checkGrammarNow } = useIdleGrammarCheck("iapi", cmd);
+  const grammar = grammarSummary(grammarIssues);
+
+  const exec = async () => {
+    await checkGrammarNow();
+    try {
+      const r = await api.iapi(session.id, cmd);
+      setOut((r.ok ? "" : "ERROR\n") + (r.output || ""));
+      setCurrentId(r.currentId || "");
+      trace(`IAPI ${cmd} · ${r.elapsedMs}ms`);
+      void recordExecution({
+        kind: "IAPI",
+        product: session.product,
+        summary: r.ok ? "OK" : "ERROR",
+        requestText: cmd,
+        responseSummary: `${r.ok ? "OK" : "ERROR"} · ${r.elapsedMs}ms`,
+        success: r.ok,
+        elapsedMs: r.elapsedMs,
+      });
+    } catch (e) {
+      onError(String(e));
+      void recordExecution({
+        kind: "IAPI",
+        product: session.product,
+        summary: "IAPI failed",
+        requestText: cmd,
+        responseSummary: String(e),
+        success: false,
+      });
+    }
+  };
+
   return (
-    <div className="panel">
-      <div className="muted">Thin IAPI REPL (mock/live DFC). ScriptRunner JS chaining is stubbed.</div>
-      <div className="row">
-        <input style={{ flex: 1 }} value={cmd} onChange={(e) => setCmd(e.target.value)} />
-        <button
-          className="primary"
-          onClick={async () => {
-            try {
-              const r = await api.iapi(session.id, cmd);
-              setOut((r.ok ? "" : "ERROR\n") + (r.output || "") + (r.currentId ? `\ncurrent=${r.currentId}` : ""));
-              trace(`IAPI ${cmd}`);
-            } catch (e) {
-              onError(String(e));
-            }
-          }}
-        >
+    <div className="panel fill">
+      <div className="page-toolbar">
+        <button className="primary" type="button" onClick={exec} title="Enter">
           Exec
         </button>
+        <span
+          className={`grammar-status ${grammarIdle ? grammar.kind : "pending"}`}
+          title={grammarIdle ? grammarIssues.map((i) => i.message).join("\n") : "Grammar check runs after you pause typing"}
+        >
+          {grammarIdle ? grammar.text : "…"}
+        </span>
+        <select onChange={(e) => e.target.value && setCmd(e.target.value)} defaultValue="">
+          <option value="">History…</option>
+          {history.map((h) => (
+            <option key={h} value={h}>
+              {h.slice(0, 80)}
+            </option>
+          ))}
+        </select>
+        <span className="muted">IAPI method,session[,args] · Enter to exec</span>
       </div>
-      <textarea readOnly rows={16} value={out} />
+      {out && (
+        <div className="result-meta muted" style={{ padding: "0 12px" }}>
+          Output
+        </div>
+      )}
+      <div className="row">
+        <input
+          style={{ flex: 1, fontFamily: "var(--mono)" }}
+          value={cmd}
+          onChange={(e) => setCmd(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              void exec();
+            }
+          }}
+        />
+      </div>
+      <div className="iapi-output">
+        {currentId && onOpenDump && (
+          <div className="row">
+            <span className="muted">current=</span>
+            <button type="button" className="entity-link" onClick={() => onOpenDump(currentId)}>
+              {currentId}
+            </button>
+          </div>
+        )}
+        <textarea readOnly rows={16} value={out} />
+      </div>
+    </div>
+  );
+}
+
+function FeatureChipList({ chips }: { chips: { id: string; label: string; enabled: boolean; reason?: string }[] }) {
+  return (
+    <ul className="chips">
+      {chips.map((c) => (
+        <li key={c.id} className={c.enabled ? "on" : "off"} title={c.reason || (c.enabled ? "Available" : "Unavailable")}>
+          {c.label}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function UnavailablePanel({
+  title,
+  reason,
+  protocol,
+  capabilities,
+}: {
+  title: string;
+  reason: string;
+  protocol: Protocol;
+  capabilities: string[];
+}) {
+  const needsDfc = /DFC|IAPI|EXECUTE|ACL|checkout/i.test(reason);
+  const needsRest = /REST|OTDS/i.test(reason);
+  return (
+    <div className="panel unavailable-panel">
+      <h3>{title}</h3>
+      <p className="warn">{reason}</p>
+      <p className="muted">
+        Connected with <strong>{protocol}</strong>
+        {isDfcProtocol(protocol) ? " (DFC)" : isRestProtocol(protocol) ? " (REST)" : ""}.
+      </p>
+      {needsDfc && (
+        <p>
+          Use a <strong>Mock DFC</strong> or <strong>Live DFC</strong> profile to enable DFC-only features (IAPI, DQL
+          EXECUTE, checkout, ACLs).
+        </p>
+      )}
+      {needsRest && (
+        <p>
+          Use a <strong>Documentum REST</strong> or <strong>OTCS REST</strong> profile to enable REST-only features.
+        </p>
+      )}
+      <div className="cap-list">
+        <span className="muted">Session capabilities:</span>
+        {capabilities.length === 0 && <span className="cap-note">none</span>}
+        {capabilities.map((c) => (
+          <span key={c} className="cap-pill">
+            {c}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1505,6 +2312,21 @@ function ProfileModal({ profiles, onClose }: { profiles: ConnectionProfile[]; on
             {draft.protocol} is stubbed. Pick a mock or REST connection for this platform.
           </p>
         )}
+        <div className="profile-caps">
+          <div className="muted">Features for this connection</div>
+          <FeatureChipList
+            chips={dctm ? documentumFeatureChips(draft.protocol) : xecmFeatureChips(draft.protocol)}
+          />
+          {isRestProtocol(draft.protocol) && dctm && (
+            <p className="cap-note">IAPI and DQL EXECUTE stay off until you switch to Mock/Live DFC.</p>
+          )}
+          {isDfcProtocol(draft.protocol) && (
+            <p className="cap-note ok">DFC enables IAPI, mutating DQL, and checkout.</p>
+          )}
+          {liveDfc && !draft.dfcLibDir && (
+            <p className="warn">Live DFC needs a local DFC lib directory with OpenText JARs.</p>
+          )}
+        </div>
         {!stubProto && (
           <>
             <label className="field">

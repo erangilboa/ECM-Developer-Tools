@@ -6,6 +6,12 @@ import type {
   JobDetail,
   JobInfo,
   ObjectDump,
+  ExecutionHistoryEntry,
+  IapiResultView,
+  QueryHistoryEntry,
+  ResolveResult,
+  RestProxyResponse,
+  SavedQuery,
   SessionView,
   TypeInfo,
 } from "./types";
@@ -79,13 +85,53 @@ export const api = {
   types: (sid: string) => http<{ types: TypeInfo[] }>(`/api/sessions/${sid}/types`),
   workspaces: (sid: string) => http<BusinessWorkspace[]>(`/api/sessions/${sid}/workspaces`),
   iapi: (sid: string, command: string) =>
-    http<{ ok: boolean; output: string; currentId: string }>(`/api/sessions/${sid}/iapi`, {
+    http<IapiResultView>(`/api/sessions/${sid}/iapi`, {
       method: "POST",
       body: JSON.stringify({ command }),
     }),
+  close: (sid: string) => http<void>(`/api/sessions/${encodeURIComponent(sid)}`, { method: "DELETE" }),
   resetMock: (sid: string) => http<void>(`/api/sessions/${sid}/reset-mock`, { method: "POST" }),
   stub: (module: string) => http<{ title: string; summary: string; stub: boolean }>(`/api/stubs/${module}`),
-  queries: () => http<{ id: string; name: string; text: string; product: string }[]>("/api/queries"),
+  queries: () => http<SavedQuery[]>("/api/queries"),
   saveQuery: (name: string, text: string, product: string) =>
-    http("/api/queries", { method: "POST", body: JSON.stringify({ name, text, product }) }),
+    http<SavedQuery>("/api/queries", { method: "POST", body: JSON.stringify({ name, text, product }) }),
+  deleteQuery: (id: string) => http<void>(`/api/queries/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  queryHistory: (product?: string) =>
+    http<QueryHistoryEntry[]>(`/api/query-history${product ? `?product=${product}` : ""}`),
+  appendQueryHistory: (text: string, product: string) =>
+    http<QueryHistoryEntry>("/api/query-history", {
+      method: "POST",
+      body: JSON.stringify({ text, product }),
+    }),
+  resolve: (sid: string, input: string) =>
+    http<ResolveResult>(`/api/sessions/${sid}/resolve`, {
+      method: "POST",
+      body: JSON.stringify({ input }),
+    }),
+  executionHistory: (product?: string) =>
+    http<ExecutionHistoryEntry[]>(`/api/execution-history${product ? `?product=${product}` : ""}`),
+  appendExecutionHistory: (entry: ExecutionHistoryEntry) =>
+    http<ExecutionHistoryEntry>("/api/execution-history", {
+      method: "POST",
+      body: JSON.stringify(entry),
+    }),
+  restProxy: (sid: string, req: { method: string; path: string; headers?: Record<string, string>; body?: string }) =>
+    http<RestProxyResponse>(`/api/sessions/${sid}/rest/proxy`, {
+      method: "POST",
+      body: JSON.stringify(req),
+    }),
+  checkGrammar: (language: "dql" | "iapi", text: string) =>
+    http<{ issues: GrammarIssue[] }>("/api/grammar/check", {
+      method: "POST",
+      body: JSON.stringify({ language, text }),
+    }).then((r) => r.issues || []),
+};
+
+export type GrammarIssue = {
+  offset: number;
+  length: number;
+  line: number;
+  column: number;
+  message: string;
+  severity: "ERROR" | "WARNING";
 };

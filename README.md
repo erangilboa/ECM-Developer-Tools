@@ -4,7 +4,7 @@
 
 **ECM-Dev-Workbench** is a local developer workbench for **OpenText Documentum** (21.2–24.2) and **OpenText Extended ECM / Content Server (OTCS)** (21.2–24.2). Connect to one product at a time; the sidebar, id labels, and tools switch to that platform.
 
-Documentum: cabinets, DQL, dump, jobs, IAPI. Extended ECM is a separate product: volumes/nodes, CS search, categories, Business Workspaces, and scheduled agents — not DQL.
+Documentum: cabinets, DQL, dump, jobs, IAPI, ACL/user/workflow inspector. Extended ECM is a separate product: volumes/nodes, CS search, categories, Business Workspaces, and scheduled agents — not DQL.
 
 You can work **offline against in-memory mocks** or **live** against Documentum REST / DFC and OTCS REST (optional OTDS). OpenText proprietary JARs are not redistributed; a live DFC profile points at your own install.
 
@@ -15,8 +15,8 @@ You can work **offline against in-memory mocks** or **live** against Documentum 
 - Named connection profiles for Documentum (`MOCK_DFC`, `DCTM_REST`, `LIVE_DFC`, DFS stub) and Extended ECM (`MOCK_OTCS`, `OTCS_REST`, CWS stub).
 - First launch seeds **Local mock (Documentum)** and **Local mock (Extended ECM)**.
 - Username/password, HTTP Basic, OTCS ticket, and OTDS password-grant or stored bearer. Secrets are stored encrypted (AES-GCM) under `%USERPROFILE%\.ecm-dev-workbench\` (or `~/.ecm-dev-workbench`).
-- Connect from the landing cards or the top bar. The status chip shows product, protocol, repository, version, and user.
-- Capability matrix drives which modules appear. Unsupported calls fail with a clear message (for example “DQL requires a Documentum session”).
+- Connect / **Disconnect** from the top bar. The session strip shows product, protocol, repository, version, user, and a **CAPS** badge listing all active capabilities.
+- Capability matrix drives which modules appear. Unsupported calls fail with a clear message (for example "DQL requires a Documentum session").
 - Mock sessions can be reset from the UI.
 
 ### Documentum
@@ -24,11 +24,17 @@ You can work **offline against in-memory mocks** or **live** against Documentum 
 | Tool | What it does |
 | --- | --- |
 | **Repository browser** | Cabinet/folder tree, contents list, breadcrumbs, Up. Open folder, dump, view content, download, copy id/name. |
-| **Run DQL** | Monaco editor with highlighting and autocomplete (keywords, types, attributes). SELECT on all Documentum adapters; EXECUTE on mock/live DFC (REST is SELECT-only). Wide result grid, sticky first column, wrap toggle, dump from an object id. Saved queries and history. |
-| **Dump** | Object attributes split into **custom** vs **system** (`r_`, `i_`, `a_`). Editable non-readonly fields, save back to the session. Multiple dump tabs, Back to the screen you drilled from. |
+| **Run DQL** | Monaco editor with highlighting, autocomplete (keywords, types, attributes), and idle grammar check. SELECT on all Documentum adapters; EXECUTE on mock/live DFC (REST is SELECT-only). Wide result grid, sticky first column, wrap toggle, dump from an object id. Saved query library and durable query history. |
+| **Dump** | Object attributes split into **custom** vs **system** (`r_`, `i_`, `a_`). Editable non-readonly fields, save back to the session. Multiple dump tabs, Back to the screen you drilled from. Entity links for ids, types, and ACL names. |
 | **Document viewer** | Inline text, image, and PDF plus download. MIME guessed from type/content. |
 | **Jobs** | `dm_job` list with status, last return, last/next run. Detail pane, Sysadmin/Reports logs, View/Dump a report, **Run now**. |
-| **IAPI** | Thin REPL on mock or live DFC (`dump,c,<id>` and related commands). Not available on REST-only sessions. |
+| **IAPI** | Thin REPL on mock or live DFC (`dump,c,<id>` and related commands). Command history, Dump handoff. Not available on REST-only sessions. |
+| **DCTM REST explorer** | Postman-style request builder for the Documentum REST API. Session-scoped proxy with auto-auth. Available on all connection types (mock uses a simulated proxy). |
+| **ACL browser** | DQL peek into `dm_acl` by name and domain. Results open in the result grid; ids drill into Dump. |
+| **Users / Groups** | DQL peek into `dm_user` or `dm_group` by name. |
+| **Workflows** | DQL peek into `dm_activity` by name. |
+| **Quick Open** | `Ctrl+P` / `Ctrl+K` palette: jump to any module, paste an object id or URL to open dump, or re-run a recent query. |
+| **Execution history** | Unified log of DQL, IAPI, REST, and search calls with elapsed time and one-click rerun. |
 
 Live DFC loads your DFC JARs in an isolated classloader (javax DFC vs Jakarta Spring Boot). REST talks HAL; `SELECT * FROM dm_job` is rewritten so job ids work. Versions 21.2–24.2; HTTP Basic for older labs, OTDS preferred on 23.4+.
 
@@ -41,6 +47,7 @@ Live DFC loads your DFC JARs in an isolated classloader (javax DFC vs Jakarta Sp
 | **Node details** | Dump-style view: custom node/business fields vs core CS system metadata, plus **categories** (OTCS category attributes). SAP-linked Business Workspaces are flagged and treated as read-mostly. |
 | **Business Workspaces** | List/get workspaces (template, external system, BO type/id). Create-via-ECMLink is stubbed. |
 | **Jobs** | Content Server **scheduled agents** (notification, index, ECMLink/SAP sync, expiration, …) — not `dm_job`. Status, logs/reports, **Run now**. Live REST uses best-effort `/api/v2/agents` or `/api/v2/scheduledjobs`. |
+| **OTCS REST explorer** | Postman-style request builder for the OTCS REST API. Session-scoped proxy with auto-auth. |
 
 OTCS REST prefers v2 for nodes, search, and workspaces; refreshes `OTCSTicket` from response headers. Writes use `multipart/form-data` with a JSON `body` part. CGI root is stored on the profile (`/otcs/cs.exe`, `/otcs/cs/`, `/otcs/llisapi.dll`, …).
 
@@ -49,6 +56,8 @@ OTCS REST prefers v2 for nodes, search, and workspaces; refreshes `OTCSTicket` f
 - One connected product at a time; sidebar is Documentum *or* Extended ECM, not a mix.
 - Drill-down (browser, DQL, search, jobs → dump) keeps a **Back** path; Esc returns. Browser/DQL/search state is kept while you inspect an object.
 - Visible action bar (Open, Dump/Details, View, Download, Copy). Right-click is a real menu — no typed `prompt()`.
+- **Session strip** in the topbar: user · repo · version · protocol pill · CAPS badge (click for capability list).
+- **Error panel** with redacted diagnostic bundle (one-click copy).
 - Activity log (collapsible) at the bottom.
 - Installed app: status window, opens http://127.0.0.1:18080/, Quit stops the server. If the port is already in use, it reopens the existing instance.
 
@@ -56,14 +65,14 @@ OTCS REST prefers v2 for nodes, search, and workspaces; refreshes `OTCSTicket` f
 
 | Mock | Seeded content |
 | --- | --- |
-| Documentum FakeDocbase | Cabinets/folders, sample documents (including a viewable contract), subset DQL/IAPI, `dm_job` plus Sysadmin/Reports logs. |
+| Documentum FakeDocbase | Cabinets/folders, sample documents (including a viewable contract), subset DQL/IAPI, `dm_job` plus Sysadmin/Reports logs, ACLs, users, groups. |
 | OTCS FakeOtcs | Volumes, folders, documents, categories, Business Workspace, scheduled agents and agent log nodes. |
 
-Enough to learn the UI and exercise dump, content, DQL, search, and jobs without a docbase or CS.
+Enough to learn the UI and exercise dump, content, DQL, search, jobs, ACL/user/workflow inspector, and REST explorer without a docbase or CS.
 
 ### Stubbed (SPI present, UI placeholder)
 
-ScriptRunner, DCTM REST explorer, DFS explorer, ACLs, users/groups, workflows, CWS explorer, ECMLink create-workspace, OTDS browser SSO.
+ScriptRunner, DFS explorer, CWS explorer, ECMLink create-workspace, OTDS browser SSO.
 
 ### Out of scope
 
