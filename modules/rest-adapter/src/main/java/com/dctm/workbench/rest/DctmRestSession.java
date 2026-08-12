@@ -20,8 +20,12 @@ import com.dctm.workbench.core.ObjectDump;
 import com.dctm.workbench.core.Product;
 import com.dctm.workbench.core.Protocol;
 import com.dctm.workbench.core.QueryMode;
+import com.dctm.workbench.core.RestCapable;
+import com.dctm.workbench.core.RestProxyRequest;
+import com.dctm.workbench.core.RestProxyResponse;
 import com.dctm.workbench.core.SearchRequest;
 import com.dctm.workbench.core.SearchResult;
+import com.dctm.workbench.core.DiagnosticRedactor;
 import com.dctm.workbench.core.ServerInfo;
 import com.dctm.workbench.core.SessionException;
 import com.dctm.workbench.core.TypeDictionary;
@@ -41,7 +45,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-public class DctmRestSession implements DocumentumSession {
+public class DctmRestSession implements DocumentumSession, RestCapable {
 
     private final HttpSupport http = new HttpSupport();
     private final String base;
@@ -369,5 +373,61 @@ public class DctmRestSession implements DocumentumSession {
             }
         }
         return "";
+    }
+
+    @Override
+    public RestProxyResponse restProxy(RestProxyRequest request) {
+        long start = System.currentTimeMillis();
+        String method = request.method() == null ? "GET" : request.method().toUpperCase(Locale.ROOT);
+        String url = resolveProxyUrl(request.path());
+        Map<String, String> hdrs = new LinkedHashMap<>(headers);
+        if (request.headers() != null) {
+            request.headers().forEach((k, v) -> {
+                if (k == null || v == null) {
+                    return;
+                }
+                String lower = k.toLowerCase(Locale.ROOT);
+                if (!lower.equals("authorization") && !lower.equals("cookie")) {
+                    hdrs.put(k, v);
+                }
+            });
+        }
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url));
+        String body = request.body() == null ? "" : request.body();
+        switch (method) {
+            case "POST" -> builder.POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8));
+            case "PUT" -> builder.PUT(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8));
+            case "PATCH" -> builder.method("PATCH", HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8));
+            case "DELETE" -> builder.DELETE();
+            default -> builder.GET();
+        }
+        HttpResponse<String> response = http.sendAny(builder, hdrs);
+        captureCsrf(response);
+        Map<String, String> responseHeaders = new LinkedHashMap<>();
+        response.headers().map().forEach((k, values) -> {
+            if (!values.isEmpty()) {
+                responseHeaders.put(k, String.join(", ", values));
+            }
+        });
+        return new RestProxyResponse(
+                response.statusCode(),
+                DiagnosticRedactor.redactHeaders(responseHeaders),
+                response.body() == null ? "" : response.body(),
+                System.currentTimeMillis() - start,
+                url
+        );
+    }
+
+    private String resolveProxyUrl(String path) {
+        if (path == null || path.isBlank()) {
+            return base + "/";
+        }
+        if (path.startsWith("http://") || path.startsWith("https://")) {
+            return path;
+        }
+        if (path.startsWith("/")) {
+            return base + path;
+        }
+        return base + "/" + path;
     }
 }

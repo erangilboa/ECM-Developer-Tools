@@ -135,18 +135,13 @@ public class SubsetDqlEngine {
             String regex = pattern.replace("%", ".*").replace("_", ".");
             return obj.first(attr).toLowerCase(Locale.ROOT).matches(regex);
         }
+        Matcher ne = Pattern.compile("(?i)^([a-zA-Z0-9_]+)\\s*(<>|!=)\\s*(.+)$").matcher(term);
+        if (ne.matches()) {
+            return !scalarEquals(obj.first(ne.group(1)), unquote(ne.group(3).trim()));
+        }
         Matcher eq = Pattern.compile("(?i)^([a-zA-Z0-9_]+)\\s*=\\s*(.+)$").matcher(term);
         if (eq.matches()) {
-            String attr = eq.group(1);
-            String expected = unquote(eq.group(2).trim());
-            String actual = obj.first(attr);
-            if ("true".equalsIgnoreCase(expected) || "T".equalsIgnoreCase(expected)) {
-                return "T".equalsIgnoreCase(actual) || "true".equalsIgnoreCase(actual);
-            }
-            if ("false".equalsIgnoreCase(expected) || "F".equalsIgnoreCase(expected)) {
-                return "F".equalsIgnoreCase(actual) || "false".equalsIgnoreCase(actual) || actual.isBlank();
-            }
-            return actual.equalsIgnoreCase(expected);
+            return scalarEquals(obj.first(eq.group(1)), unquote(eq.group(2).trim()));
         }
         throw new SessionException("Mock DQL WHERE term not supported: " + term);
     }
@@ -166,6 +161,17 @@ public class SubsetDqlEngine {
             return "";
         }
         return String.join(",", values);
+    }
+
+    private static boolean scalarEquals(String actual, String expected) {
+        String value = actual == null ? "" : actual;
+        if ("true".equalsIgnoreCase(expected) || "T".equalsIgnoreCase(expected)) {
+            return "T".equalsIgnoreCase(value) || "true".equalsIgnoreCase(value);
+        }
+        if ("false".equalsIgnoreCase(expected) || "F".equalsIgnoreCase(expected)) {
+            return "F".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value) || value.isBlank();
+        }
+        return value.equalsIgnoreCase(expected);
     }
 
     private static String unquote(String value) {

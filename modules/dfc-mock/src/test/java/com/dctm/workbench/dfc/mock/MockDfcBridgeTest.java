@@ -52,6 +52,22 @@ class MockDfcBridgeTest {
     }
 
     @Test
+    void whereNotEqualsAcceptsUnicode() {
+        DqlResult result = bridge.query(
+                "select * from dm_document where object_name <>'בדיקה'", QueryMode.READ);
+        assertThat(result.rowCount()).isPositive();
+        int nameCol = 0;
+        for (int i = 0; i < result.columns().size(); i++) {
+            if (result.columns().get(i).equalsIgnoreCase("object_name")) {
+                nameCol = i;
+                break;
+            }
+        }
+        int col = nameCol;
+        assertThat(result.rows().stream().map(r -> r.get(col))).doesNotContain("בדיקה");
+    }
+
+    @Test
     void returnTop() {
         DqlResult result = bridge.query("SELECT object_name FROM dm_sysobject ENABLE(RETURN_TOP 1)", QueryMode.READ);
         assertThat(result.rowCount()).isEqualTo(1);

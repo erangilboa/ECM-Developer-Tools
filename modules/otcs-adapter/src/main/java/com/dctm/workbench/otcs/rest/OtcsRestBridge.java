@@ -20,6 +20,10 @@ import com.dctm.workbench.core.OtcsConnectRequest;
 import com.dctm.workbench.core.Protocol;
 import com.dctm.workbench.core.SearchRequest;
 import com.dctm.workbench.core.SearchResult;
+import com.dctm.workbench.core.DiagnosticRedactor;
+import com.dctm.workbench.core.RestCapable;
+import com.dctm.workbench.core.RestProxyRequest;
+import com.dctm.workbench.core.RestProxyResponse;
 import com.dctm.workbench.core.ServerInfo;
 import com.dctm.workbench.core.SessionException;
 import com.dctm.workbench.otds.OtdsClient;
@@ -41,7 +45,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
-public class OtcsRestBridge implements OtcsBridge {
+public class OtcsRestBridge implements OtcsBridge, RestCapable {
 
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).build();
     private final ObjectMapper mapper = new ObjectMapper();
@@ -558,5 +562,65 @@ public class OtcsRestBridge implements OtcsBridge {
             return "";
         }
         return body.length() > 300 ? body.substring(0, 300) : body;
+    }
+
+    @Override
+    public RestProxyResponse restProxy(RestProxyRequest request) {
+        long start = System.currentTimeMillis();
+        String method = request.method() == null ? "GET" : request.method().toUpperCase(Locale.ROOT);
+        String url = resolveProxyUrl(request.path());
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url));
+        String body = request.body() == null ? "" : request.body();
+        switch (method) {
+            case "POST" -> builder.POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8));
+            case "PUT" -> builder.PUT(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8));
+            case "PATCH" -> builder.method("PATCH", HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8));
+            case "DELETE" -> builder.DELETE();
+            default -> builder.GET();
+        }
+        if (request.headers() != null) {
+            request.headers().forEach((k, v) -> {
+                if (k != null && v != null) {
+                    String lower = k.toLowerCase(Locale.ROOT);
+                    if (!lower.equals("authorization") && !lower.equals("otcsticket") && !lower.equals("otdsticket")) {
+                        builder.header(k, v);
+                    }
+                }
+            });
+        }
+        applyAuth(builder);
+        builder.timeout(Duration.ofSeconds(60));
+        try {
+            HttpResponse<String> response = http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+            refreshTicket(response);
+            Map<String, String> responseHeaders = new LinkedHashMap<>();
+            response.headers().map().forEach((k, values) -> {
+                if (!values.isEmpty()) {
+                    responseHeaders.put(k, String.join(", ", values));
+                }
+            });
+            return new RestProxyResponse(
+                    response.statusCode(),
+                    DiagnosticRedactor.redactHeaders(responseHeaders),
+                    response.body() == null ? "" : response.body(),
+                    System.currentTimeMillis() - start,
+                    url
+            );
+        } catch (Exception e) {
+            throw new SessionException("REST proxy failed: " + e.getMessage(), e);
+        }
+    }
+
+    private String resolveProxyUrl(String path) {
+        if (path == null || path.isBlank()) {
+            return cgiRoot + "/";
+        }
+        if (path.startsWith("http://") || path.startsWith("https://")) {
+            return path;
+        }
+        if (path.startsWith("/")) {
+            return cgiRoot + path;
+        }
+        return cgiRoot + "/" + path;
     }
 }

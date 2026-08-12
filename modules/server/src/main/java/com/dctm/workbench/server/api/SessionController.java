@@ -16,6 +16,7 @@ import com.dctm.workbench.core.JobList;
 import com.dctm.workbench.core.ObjectDump;
 import com.dctm.workbench.core.OtcsSession;
 import com.dctm.workbench.core.QueryMode;
+import com.dctm.workbench.core.RepositoryEntityResolver;
 import com.dctm.workbench.core.RepositorySession;
 import com.dctm.workbench.core.SearchRequest;
 import com.dctm.workbench.core.SearchResult;
@@ -61,13 +62,19 @@ public class SessionController {
         char[] secret = body.secret() != null ? body.secret().toCharArray() : profiles.secretFor(profile);
         RepositorySession session = sessions.connect(profile, secret);
         SessionRegistry.Handle handle = registry.put(profile, session);
-        return Dto.SessionView.of(handle.id(), profile, session.serverInfo());
+        return Dto.SessionView.of(handle.id(), profile, session.serverInfo(), handle.opened());
     }
 
     @GetMapping("/sessions/{id}")
     public Dto.SessionView get(@PathVariable String id) {
         SessionRegistry.Handle handle = registry.require(id);
-        return Dto.SessionView.of(handle.id(), handle.profile(), handle.session().serverInfo());
+        return Dto.SessionView.of(handle.id(), handle.profile(), handle.session().serverInfo(), handle.opened());
+    }
+
+    @PostMapping("/sessions/{id}/resolve")
+    public Dto.ResolveResponse resolve(@PathVariable String id, @RequestBody Dto.ResolveBody body) {
+        SessionRegistry.Handle handle = registry.require(id);
+        return Dto.ResolveResponse.of(RepositoryEntityResolver.resolve(body.input(), handle.profile().getProduct()));
     }
 
     @DeleteMapping("/sessions/{id}")
@@ -131,7 +138,11 @@ public class SessionController {
 
     @PostMapping("/sessions/{id}/search")
     public SearchResult search(@PathVariable String id, @RequestBody Dto.SearchBody body) {
-        return registry.require(id).session().search(new SearchRequest(body.query(), body.limit() <= 0 ? 100 : body.limit()));
+        long start = System.currentTimeMillis();
+        SearchResult result = registry.require(id).session()
+                .search(new SearchRequest(body.query(), body.limit() <= 0 ? 100 : body.limit()));
+        long elapsed = System.currentTimeMillis() - start;
+        return new SearchResult(result.columns(), result.rows(), result.rowCount(), elapsed);
     }
 
     @GetMapping("/sessions/{id}/jobs")
@@ -180,7 +191,10 @@ public class SessionController {
 
     @PostMapping("/sessions/{id}/iapi")
     public IapiResult iapi(@PathVariable String id, @RequestBody Dto.IapiBody body) {
-        return dctm(id).iapi(body.command());
+        long start = System.currentTimeMillis();
+        IapiResult result = dctm(id).iapi(body.command());
+        long elapsed = System.currentTimeMillis() - start;
+        return new IapiResult(result.ok(), result.output(), result.currentId(), elapsed);
     }
 
     @GetMapping("/sessions/{id}/workspaces")

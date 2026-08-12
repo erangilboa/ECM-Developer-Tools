@@ -7,6 +7,9 @@ export const DQL_KEYWORDS = [
   "NOT",
   "LIKE",
   "IN",
+  "IS",
+  "NULL",
+  "BETWEEN",
   "ORDER",
   "BY",
   "ENABLE",
@@ -14,6 +17,8 @@ export const DQL_KEYWORDS = [
   "FTDQL",
   "FOLDER",
   "CABINET",
+  "TYPE",
+  "ANY",
   "UPDATE",
   "OBJECTS",
   "SET",
@@ -22,7 +27,18 @@ export const DQL_KEYWORDS = [
   "GROUP",
   "HAVING",
   "UNION",
+  "ALL",
+  "DISTINCT",
+  "ASC",
+  "DESC",
+  "DESCEND",
   "SYNONYM",
+  "INSERT",
+  "INTO",
+  "VALUES",
+  "TRUE",
+  "FALSE",
+  "AS",
 ];
 
 export const DQL_FUNCTIONS = [
@@ -32,24 +48,59 @@ export const DQL_FUNCTIONS = [
   "MIN",
   "MAX",
   "DATE",
+  "DATETIME",
   "DATETOSTRING",
   "UPPER",
   "LOWER",
   "SUBSTR",
+  "SUBSTRING",
+  "LENGTH",
+  "USER",
+  "TODAY",
+  "NOW",
+  "YESTERDAY",
 ];
 
 export function registerDql(monaco: typeof import("monaco-editor")) {
   monaco.languages.register({ id: "dql" });
+  monaco.languages.setLanguageConfiguration("dql", {
+    comments: { lineComment: "--", blockComment: ["/*", "*/"] },
+    brackets: [
+      ["(", ")"],
+    ],
+    autoClosingPairs: [
+      { open: "(", close: ")" },
+      { open: "'", close: "'" },
+    ],
+    surroundingPairs: [
+      { open: "(", close: ")" },
+      { open: "'", close: "'" },
+    ],
+    wordPattern: /[a-zA-Z_][\w]*/,
+  });
   monaco.languages.setMonarchTokensProvider("dql", {
     ignoreCase: true,
+    defaultToken: "",
     keywords: DQL_KEYWORDS,
+    builtin: DQL_FUNCTIONS,
+    operators: ["=", "<>", "!=", "<", ">", "<=", ">="],
     tokenizer: {
       root: [
-        [/[a-zA-Z_][\w$]*/, { cases: { "@keywords": "keyword", "@default": "identifier" } }],
-        [/'[^']*'/, "string"],
-        [/"[^"]*"/, "string"],
-        [/[0-9]+/, "number"],
         [/--.*$/, "comment"],
+        [/\/\*/, "comment", "@comment"],
+        [/'([^']|'')*'/, "string"],
+        [/'([^']|'')*$/, "string.invalid"],
+        [/[0-9]+(\.[0-9]+)?/, "number"],
+        [/<>|!=|<=|>=|[=<>]/, "operator"],
+        [/[()*,.]/, "delimiter"],
+        [
+          /[a-zA-Z_][\w]*/,
+          { cases: { "@keywords": "keyword", "@builtin": "predefined", "@default": "identifier" } },
+        ],
+      ],
+      comment: [
+        [/\*\//, "comment", "@pop"],
+        [/./, "comment"],
       ],
     },
   });

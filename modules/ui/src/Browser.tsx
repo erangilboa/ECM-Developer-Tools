@@ -157,13 +157,13 @@ export function Browser({
       {
         id: "view",
         label: "View content",
-        disabled: disabled || !!node?.folder,
+        disabled: disabled || !!node?.folder || !session.capabilities?.includes("CONTENT_GET"),
         run: () => node && onView(node.id, node.name),
       },
       {
         id: "download",
         label: "Download",
-        disabled: disabled || !!node?.folder,
+        disabled: disabled || !!node?.folder || !session.capabilities?.includes("CONTENT_GET"),
         run: () => node && download(node),
       },
       {

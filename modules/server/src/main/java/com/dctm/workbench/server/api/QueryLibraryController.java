@@ -2,7 +2,9 @@ package com.dctm.workbench.server.api;
 
 import com.dctm.workbench.core.SavedQuery;
 import com.dctm.workbench.server.store.ProfileStore;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,5 +30,10 @@ public class QueryLibraryController {
     @PostMapping
     public SavedQuery save(@RequestBody SavedQuery query) {
         return store.saveQuery(query);
+    }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable String id) {
+        store.deleteQuery(id);
     }
 }

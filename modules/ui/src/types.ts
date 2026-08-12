@@ -35,6 +35,31 @@ export interface SessionView {
   userName: string;
   idLabel: string;
   capabilities: string[];
+  authMode?: string;
+  restBaseUrl?: string;
+  cgiRoot?: string;
+  connectedAt?: string;
+}
+
+export interface SavedQuery {
+  id: string;
+  name: string;
+  text: string;
+  product: Product;
+}
+
+export interface QueryHistoryEntry {
+  id: string;
+  text: string;
+  product: Product;
+  lastUsed: number;
+}
+
+export interface ResolveResult {
+  kind: string;
+  id: string;
+  label: string;
+  action: string;
 }
 
 export interface BrowseNode {
@@ -82,6 +107,33 @@ export interface GridResult {
   rowCount: number;
   query?: string;
   elapsedMs?: number;
+}
+
+export interface IapiResultView {
+  ok: boolean;
+  output: string;
+  currentId: string;
+  elapsedMs?: number;
+}
+
+export interface RestProxyResponse {
+  status: number;
+  headers: Record<string, string>;
+  body: string;
+  elapsedMs: number;
+  url: string;
+}
+
+export interface ExecutionHistoryEntry {
+  id?: string;
+  kind: string;
+  product: Product;
+  summary: string;
+  requestText: string;
+  responseSummary?: string;
+  success: boolean;
+  elapsedMs?: number;
+  lastUsed?: number;
 }
 
 export interface JobInfo {

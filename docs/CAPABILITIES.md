@@ -32,4 +32,12 @@ The workbench enables modules from `Capability` on the current session. Screens 
 | OTDS_AUTH | n/a | ticket / bearer |
 | DQL_* / IAPI | no | no |
 
-Unsupported operations throw `UnsupportedCapabilityException` with a clear message (for example “DQL requires a Documentum session”).
+## UI gating
+
+The React shell resolves each nav item against the session’s `capabilities` and protocol:
+
+- **DFC-only** (`MOCK_DFC` / `LIVE_DFC`): IAPI, DQL EXECUTE, checkout, ACL browser, ScriptRunner.
+- **REST-only flavor**: REST explorer (needs `DCTM_REST` / `OTCS_REST`); OTDS SSO needs `OTDS_AUTH`.
+- Actions (Run DQL mutate, Save dump, Run job, View content) disable when the matching capability is absent.
+
+Disabled modules stay visible in the nav with an **off** badge and open an explanation panel instead of failing on click.

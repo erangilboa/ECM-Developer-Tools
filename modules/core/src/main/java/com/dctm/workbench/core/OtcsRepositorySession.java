@@ -14,6 +14,10 @@ public class OtcsRepositorySession implements OtcsSession {
         this.info = info;
     }
 
+    public OtcsBridge bridge() {
+        return bridge;
+    }
+
     @Override
     public Product product() {
         return Product.EXTENDED_ECM;

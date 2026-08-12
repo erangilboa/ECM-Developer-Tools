@@ -1,5 +1,6 @@
 package com.dctm.workbench.server.api;
 
+import com.dctm.workbench.core.DiagnosticRedactor;
 import com.dctm.workbench.core.SessionException;
 import com.dctm.workbench.core.UnsupportedCapabilityException;
 import org.springframework.http.HttpStatus;
@@ -7,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestControllerAdvice
@@ -22,7 +24,10 @@ public class ApiExceptionHandler {
     }
 
     @ExceptionHandler(SessionException.class)
-    public ResponseEntity<Map<String, String>> session(SessionException e) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+    public ResponseEntity<Map<String, Object>> session(SessionException e) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", DiagnosticRedactor.redactText(e.getMessage()));
+        body.put("diagnosticHint", "Use Copy diagnostic bundle in the error panel for support.");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 }

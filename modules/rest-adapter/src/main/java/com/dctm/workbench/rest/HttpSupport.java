@@ -54,6 +54,16 @@ final class HttpSupport {
         }
     }
 
+    HttpResponse<String> sendAny(HttpRequest.Builder builder, Map<String, String> headers) {
+        try {
+            headers.forEach(builder::header);
+            builder.timeout(Duration.ofSeconds(60));
+            return http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        } catch (Exception e) {
+            throw new SessionException("HTTP call failed: " + e.getMessage(), e);
+        }
+    }
+
     JsonNode parse(String body) {
         try {
             if (body == null || body.isBlank()) {
